@@ -39,6 +39,42 @@ await repo.init()
 const app = await buildApp({ config, repo, role: 'teacher' })
 const studentApp = await buildApp({ config, repo, role: 'student' })
 
+// ── 登录：两个端都要带上会话，否则所有接口 401 ──────────────────
+const { ensureBootstrapTeacher } = await import('../server/auth/users.js')
+const boot = ensureBootstrapTeacher()
+
+let T_COOKIE = ''
+let S_COOKIE = ''
+
+const tInject = (opts: Record<string, unknown>) =>
+  app.inject({ ...opts, headers: { cookie: T_COOKIE, ...((opts.headers as Record<string, string>) ?? {}) } } as never)
+const sInject = (opts: Record<string, unknown>) =>
+  studentApp.inject({ ...opts, headers: { cookie: S_COOKIE, ...((opts.headers as Record<string, string>) ?? {}) } } as never)
+
+const tLogin = await app.inject({
+  method: 'POST',
+  url: '/api/auth/login',
+  payload: { username: boot.username, password: boot.password },
+})
+if (tLogin.statusCode !== 200) throw new Error('教师账号登录失败，自检无法继续')
+T_COOKIE = String(tLogin.headers['set-cookie'] ?? '').split(';')[0] ?? ''
+
+const seeded = await app.inject({
+  method: 'POST',
+  url: '/api/users',
+  headers: { cookie: T_COOKIE, 'content-type': 'application/json' },
+  payload: { username: 'zijian', displayName: '自检同学', password: 'test123456', role: 'student' },
+})
+if (seeded.statusCode !== 200 && seeded.statusCode !== 409) throw new Error('创建自检学生失败')
+
+const sLogin = await studentApp.inject({
+  method: 'POST',
+  url: '/api/auth/login',
+  payload: { username: 'zijian', password: 'test123456' },
+})
+if (sLogin.statusCode !== 200) throw new Error('学生账号登录失败')
+S_COOKIE = String(sLogin.headers['set-cookie'] ?? '').split(';')[0] ?? ''
+
 let paperId = ''
 let generated = null as Awaited<ReturnType<typeof generatePaper>> | null
 let baselineStems = ''
@@ -93,13 +129,13 @@ check('公式可被 KaTeX 渲染', async () => {
 })
 
 check('人工改题可持久化', async () => {
-  const detail = await app.inject({ method: 'GET', url: `/api/papers/${paperId}` })
+  const detail = await tInject({ method: 'GET', url: `/api/papers/${paperId}` })
   if (detail.statusCode !== 200) throw new Error(`读取试卷失败 ${detail.statusCode}`)
   const body = detail.json() as { paper: { sections: Array<{ questions: Array<{ id: string }> }> } }
   const qid = body.paper.sections[0]?.questions[0]?.id
   if (!qid) throw new Error('试卷没有题目')
 
-  const res = await app.inject({
+  const res = await tInject({
     method: 'PATCH',
     url: `/api/papers/${paperId}/questions/${qid}`,
     payload: { score: 7 },
@@ -112,11 +148,11 @@ check('人工改题可持久化', async () => {
 
 check('提交作答 → 确定性评分', async () => {
   if (!generated) throw new Error('前置步骤未完成')
-  await app.inject({ method: 'POST', url: `/api/papers/${paperId}/publish` })
+  await tInject({ method: 'POST', url: `/api/papers/${paperId}/publish` })
   const questions = generated.ir.sections.flatMap((s) => s.questions)
   const answers: Record<string, string[]> = {}
   for (const q of questions) answers[q.id] = q.answers
-  const res = await app.inject({
+  const res = await tInject({
     method: 'POST',
     url: '/api/attempts',
     payload: { paperId, student: '自检同学', answers },
@@ -131,7 +167,7 @@ check('提交作答 → 确定性评分', async () => {
 })
 
 check('学情统计与作答一致', async () => {
-  const res = await app.inject({ method: 'GET', url: `/api/papers/${paperId}/stats` })
+  const res = await tInject({ method: 'GET', url: `/api/papers/${paperId}/stats` })
   if (res.statusCode !== 200) throw new Error(`统计失败 ${res.statusCode}`)
   const body = res.json() as {
     stats: { submissions: number; avgPercent: number; knowledge: unknown[] }
@@ -143,7 +179,7 @@ check('学情统计与作答一致', async () => {
 })
 
 check('成绩单 CSV 带 BOM、表头正确', async () => {
-  const res = await app.inject({ method: 'GET', url: `/api/papers/${paperId}/attempts.csv` })
+  const res = await tInject({ method: 'GET', url: `/api/papers/${paperId}/attempts.csv` })
   if (res.statusCode !== 200) throw new Error(`导出失败 ${res.statusCode}`)
   // 没 BOM 的话 Excel 打开中文必乱码，这条不能再退回去
   if (!res.body.startsWith('\ufeff')) throw new Error('CSV 缺少 BOM')
@@ -159,7 +195,7 @@ check('学生端：只见已发布卷，错题带原始作答', async () => {
   if (!generated) throw new Error('前置步骤未完成')
 
   const draft = await repo.createPaper(generated.ir)
-  const list = await studentApp.inject({ method: 'GET', url: '/api/student/papers' })
+  const list = await sInject({ method: 'GET', url: '/api/student/papers' })
   if (list.statusCode !== 200) throw new Error(`学生端列表失败 ${list.statusCode}`)
   const items = (list.json() as { items: Array<{ id: string }> }).items
   if (items.some((item) => item.id === draft.id)) throw new Error('草稿出现在了学生端列表')
@@ -170,7 +206,7 @@ check('学生端：只见已发布卷，错题带原始作答', async () => {
   for (const q of questions) {
     answers[q.id] = q.type === 'single' ? ['ZZZ'] : q.answers
   }
-  const created = await studentApp.inject({
+  const created = await sInject({
     method: 'POST',
     url: '/api/attempts',
     payload: { paperId, student: '自检同学', answers },
@@ -178,7 +214,7 @@ check('学生端：只见已发布卷，错题带原始作答', async () => {
   if (created.statusCode !== 200) throw new Error(`交卷失败 ${created.statusCode}`)
   const attemptId = (created.json() as { attemptId: string }).attemptId
 
-  const detail = await studentApp.inject({ method: 'GET', url: `/api/attempts/${attemptId}` })
+  const detail = await sInject({ method: 'GET', url: `/api/attempts/${attemptId}` })
   if (detail.statusCode !== 200) throw new Error(`错题回顾失败 ${detail.statusCode}`)
   const body = detail.json() as { review: Array<{ myAnswer?: string[] }> }
   if (body.review.length === 0) throw new Error('错题列表为空')
@@ -188,8 +224,39 @@ check('学生端：只见已发布卷，错题带原始作答', async () => {
   return `${items.length} 份可见 · ${body.review.length} 道错题可回顾`
 })
 
+check('鉴权：未登录 401，走错端被挡', async () => {
+  const anon = await app.inject({ method: 'GET', url: '/api/papers' })
+  if (anon.statusCode !== 401) throw new Error(`未登录应为 401，实际 ${anon.statusCode}`)
+
+  // 注意：这里必须用原始 inject，不能带会话，否则测不到"未登录"
+  const anonymousAttempt = await app.inject({
+    method: 'POST',
+    url: '/api/attempts',
+    payload: { paperId, student: '冒名者', answers: {} },
+  })
+  if (anonymousAttempt.statusCode !== 401) throw new Error('未登录交卷应为 401')
+
+  const wrongPort = await studentApp.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { username: boot.username, password: boot.password },
+  })
+  if (wrongPort.statusCode !== 403) {
+    throw new Error(`教师账号在学生端登录应为 403，实际 ${wrongPort.statusCode}`)
+  }
+
+  const badPassword = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { username: boot.username, password: 'wrong-password' },
+  })
+  if (badPassword.statusCode !== 401) throw new Error('密码错误应为 401')
+
+  return '未登录 401 · 未登录交卷 401 · 走错端 403 · 错密码 401'
+})
+
 check('两端路由面隔离：学生端碰不到出卷与改题', async () => {
-  const health = await studentApp.inject({ method: 'GET', url: '/api/health' })
+  const health = await sInject({ method: 'GET', url: '/api/health' })
   if (health.statusCode !== 200) throw new Error(`学生端健康检查失败 ${health.statusCode}`)
   const body = health.json() as { role?: string }
   if (body.role !== 'student') throw new Error(`学生端 role 应为 student，实际 ${body.role}`)
@@ -204,14 +271,14 @@ check('两端路由面隔离：学生端碰不到出卷与改题', async () => {
   ] as const
 
   for (const [method, url] of attempts) {
-    const res = await studentApp.inject({ method, url, payload: {} })
+    const res = await sInject({ method, url, payload: {} })
     if (res.statusCode !== 404) {
       throw new Error(`学生端不应暴露 ${method} ${url}，实际 ${res.statusCode}`)
     }
   }
 
   // 反向也成立：教师端没有学生端入口
-  const reverse = await app.inject({ method: 'GET', url: '/api/student/papers' })
+  const reverse = await tInject({ method: 'GET', url: '/api/student/papers' })
   if (reverse.statusCode !== 404) throw new Error('教师端不应暴露学生端接口')
 
   return `${attempts.length} 条教师端接口在学生端均为 404`
@@ -225,7 +292,7 @@ check('草稿试答：可交卷但不污染学情', async () => {
   const answers: Record<string, string[]> = {}
   for (const q of questions) answers[q.id] = q.answers
 
-  const res = await app.inject({
+  const res = await tInject({
     method: 'POST',
     url: '/api/attempts',
     payload: { paperId: draft.id, student: '试答老师', answers },
@@ -236,7 +303,7 @@ check('草稿试答：可交卷但不污染学情', async () => {
   const body = res.json() as { preview: boolean; score: number }
   if (!body.preview) throw new Error('草稿试答未被标记 preview')
 
-  const statsRes = await app.inject({ method: 'GET', url: `/api/papers/${draft.id}/stats` })
+  const statsRes = await tInject({ method: 'GET', url: `/api/papers/${draft.id}/stats` })
   const stats = statsRes.json() as { stats: { submissions: number } }
   if (stats.stats.submissions !== 0) {
     throw new Error(`试答不应计入统计，实际 ${stats.stats.submissions} 份`)
@@ -251,7 +318,7 @@ check('空 JSON body 的 POST / DELETE 不再 400', async () => {
   // 于是"发布/删除"这类无 body 的调用整片 400。这里固化成回归测试。
   const scratch = await repo.createPaper(generated.ir)
 
-  const res = await app.inject({
+  const res = await tInject({
     method: 'POST',
     url: `/api/papers/${scratch.id}/publish`,
     headers: { 'content-type': 'application/json' },
@@ -261,7 +328,7 @@ check('空 JSON body 的 POST / DELETE 不再 400', async () => {
     throw new Error(`空 body 的 POST 应被接受，实际 ${res.statusCode}：${res.body.slice(0, 120)}`)
   }
 
-  const del = await app.inject({
+  const del = await tInject({
     method: 'DELETE',
     url: `/api/papers/${scratch.id}`,
     headers: { 'content-type': 'application/json' },
@@ -273,7 +340,7 @@ check('空 JSON body 的 POST / DELETE 不再 400', async () => {
 })
 
 check('接入配置不回传密钥', async () => {
-  const res = await app.inject({ method: 'GET', url: '/api/settings' })
+  const res = await tInject({ method: 'GET', url: '/api/settings' })
   if (res.statusCode !== 200) throw new Error(`读取配置失败 ${res.statusCode}`)
   if (res.body.includes('"apiKey"')) throw new Error('响应体中出现了 apiKey 字段')
 
@@ -290,7 +357,7 @@ check('接入配置不回传密钥', async () => {
 })
 
 check('IR 导出可下载且结构完整', async () => {
-  const res = await app.inject({ method: 'GET', url: `/api/papers/${paperId}/paper.json` })
+  const res = await tInject({ method: 'GET', url: `/api/papers/${paperId}/paper.json` })
   if (res.statusCode !== 200) throw new Error(`导出失败 ${res.statusCode}`)
   const parsed = paperSchema.safeParse(JSON.parse(res.body))
   if (!parsed.success) throw new Error('导出的 IR 结构不合法')
@@ -300,7 +367,7 @@ check('IR 导出可下载且结构完整', async () => {
 })
 
 check('演示模式下助手明确拒绝而非假装回答', async () => {
-  const res = await app.inject({
+  const res = await tInject({
     method: 'POST',
     url: '/api/assistant/chat',
     payload: { messages: [{ role: 'user', content: '你好' }], context: { page: 'compose' } },

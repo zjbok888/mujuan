@@ -7,6 +7,7 @@ import { LlmError } from '../infra/llm.js'
 import { createRateLimiter } from '../infra/rate-limit.js'
 import type { PaperRepo } from '../infra/repo.js'
 import { isDemo } from '../settings.js'
+import { currentUser } from '../auth/session.js'
 import type { PaperIR } from '../../shared/ir.js'
 
 /**
@@ -35,16 +36,13 @@ interface StudentPaper {
   myBest: { score: number; maxScore: number; attemptId: string } | null
 }
 
-function nameOf(value: unknown): string {
-  return typeof value === 'string' ? value.trim().slice(0, 32) : ''
-}
-
 export function registerStudentRoutes(app: FastifyInstance, deps: StudentDeps): void {
   const allowAssistant = createRateLimiter(20, 60_000)
 
   /** 学生能看到的卷子：只有已发布的 */
   app.get<{ Querystring: { student?: string } }>('/api/student/papers', async (request) => {
-    const student = nameOf(request.query.student)
+    // 身份来自会话，不再信任查询参数
+    const student = currentUser(request)?.displayName ?? ''
     const papers = (await deps.repo.listPapers()).filter((p) => p.status === 'published')
 
     const items: StudentPaper[] = []
@@ -73,8 +71,8 @@ export function registerStudentRoutes(app: FastifyInstance, deps: StudentDeps): 
 
   /** 我的全部作答记录，按时间倒序 */
   app.get<{ Querystring: { student?: string } }>('/api/student/attempts', async (request, reply) => {
-    const student = nameOf(request.query.student)
-    if (!student) return reply.code(400).send({ error: 'MISSING_STUDENT', message: '请先填写姓名' })
+    const student = currentUser(request)?.displayName ?? ''
+    if (!student) return reply.code(401).send({ error: 'UNAUTHENTICATED', message: '请先登录' })
 
     const papers = await deps.repo.listPapers()
     const titles = new Map(papers.map((p) => [p.id, p.title]))
@@ -111,6 +109,12 @@ export function registerStudentRoutes(app: FastifyInstance, deps: StudentDeps): 
   app.get<{ Params: { id: string } }>('/api/attempts/:id', async (request, reply) => {
     const attempt = await deps.repo.getAttempt(request.params.id)
     if (!attempt) return reply.code(404).send({ error: 'NOT_FOUND', message: '作答记录不存在' })
+
+    // 只能看自己的答卷：换个 id 猜别人的记录也拿不到
+    const me = currentUser(request)
+    if (!me || attempt.student !== me.displayName) {
+      return reply.code(403).send({ error: 'FORBIDDEN', message: '只能查看自己的作答' })
+    }
 
     const paper = await deps.repo.getPaper(attempt.paperId)
     const ir: PaperIR | null = paper?.ir ?? null

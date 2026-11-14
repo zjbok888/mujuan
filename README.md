@@ -55,6 +55,25 @@ npm start            # 启动，访问 http://127.0.0.1:4000
 
 它们跑在**同一个进程、同一个数据库**里，但路由面完全分开（见 2.1）。
 
+### 1.2.2 登录
+
+两个端口都有登录页，**账号不能串端用**（拿老师账号登学生端会被挡住并提示正确端口）。
+
+首次启动会自动创建老师账号并打印在控制台：
+
+```
+[mujuan] 已创建首个教师账号：teacher / mujuan2026
+```
+
+| 角色 | 账号 | 密码 | 来源 |
+|---|---|---|---|
+| 老师 | `teacher` | `mujuan2026` | 首次启动自动创建（可用 `TEACHER_USER` / `TEACHER_PASSWORD` 覆盖） |
+| 学生 | 由老师创建 | 老师分配 | 「成员」页新增，不支持自助注册 |
+
+学生账号为什么不让自助注册：一间教室里"谁能进"必须由老师决定，开放注册等于让任何人混进班级。
+
+密码用 Node 内置 `scrypt` 加盐哈希存储（无第三方依赖），会话是 httpOnly Cookie + 服务端内存表，重启即失效。
+
 ### 1.3 自检（评委请先跑这一条）
 
 ```bash
@@ -71,6 +90,7 @@ npm run verify
   ✓ 人工改题可持久化
   ✓ 提交作答 → 确定性评分
   ✓ 学情统计与作答一致
+  ✓ 鉴权：未登录 401，走错端被挡
   ✓ 学生端：只见已发布卷，错题带原始作答
   ✓ 两端路由面隔离：学生端碰不到出卷与改题
   ✓ 草稿试答：可交卷但不污染学情
@@ -81,7 +101,7 @@ npm run verify
   ✓ 成绩单 CSV 带 BOM、表头正确
   ✓ 无 Key 回放具备确定性
 
-16/16 passed
+17/17 passed
 ```
 
 自检**不读取 API Key、不访问网络**，跑在临时目录里，不会污染你的数据。
@@ -112,7 +132,7 @@ git clone <repo> mujuan && cd mujuan
 npm ci && npm run build && npm run verify
 ```
 
-结果：`16/16 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
+结果：`17/17 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
 `/assets/*.js` 返回 200，SSE 生成完整跑通（plan → 4 items → validate → paper.done → done）。
 
 ---

@@ -13,7 +13,6 @@ interface PaperResponse {
 
 export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: string) => void }) {
   const [data, setData] = useState<PaperResponse | null>(null)
-  const [student, setStudent] = useState('')
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [result, setResult] = useState<GradeResult | null>(null)
   const [preview, setPreview] = useState(false)
@@ -87,7 +86,6 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
         result: GradeResult
       }>('/api/attempts', {
         paperId: data.id,
-        student: student.trim() || '匿名同学',
         answers,
       })
       setResult(res.result)
@@ -188,13 +186,7 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
           </div>
         </div>
         <div className="actions">
-          <input
-            className="input"
-            style={{ width: 180 }}
-            placeholder="你的名字"
-            value={student}
-            onChange={(e) => setStudent(e.target.value)}
-          />
+
           <button className="btn btn-seal" onClick={() => void submit()} disabled={busy}>
             {busy ? '评分中…' : '交卷'}
           </button>

@@ -14,6 +14,8 @@ import { registerSettingsRoutes } from './routes/settings.js'
 import { registerAssistantRoutes } from './routes/assistant.js'
 import { registerStudentRoutes } from './routes/student.js'
 import { registerAttemptRoutes } from './routes/attempts.js'
+import { registerAuthRoutes } from './routes/auth.js'
+import { currentUser } from './auth/session.js'
 
 /**
  * 两个端口 = 两个应用。
@@ -113,9 +115,30 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     provider: provider.kind,
     model: demo ? 'fixture-replay' : provider.model,
     version: '0.1.0',
-    // 教师端要能告诉老师"学生该去哪"——端口是配置出来的，不能让老师自己猜
+    // 两端都告诉对方端口：登录页要能引导"走错端"的人
+    peerPort: role === 'teacher' ? config.studentPort : config.port,
     ...(role === 'teacher' ? { studentPort: config.studentPort } : {}),
   }))
+
+  // ── 鉴权：除了健康检查与登录本身，所有 /api 都必须带本端角色的会话 ──
+  app.addHook('onRequest', async (request, reply) => {
+    const url = request.url
+    if (!url.startsWith('/api/')) return // 静态资源与登录页放行
+    if (url === '/api/health' || url.startsWith('/api/auth/')) return
+
+    const user = currentUser(request)
+    if (!user) {
+      return reply.code(401).send({ error: 'UNAUTHENTICATED', message: '请先登录' })
+    }
+    if (user.role !== role) {
+      return reply.code(403).send({ error: 'WRONG_ROLE', message: '当前端口不接受该角色账号' })
+    }
+  })
+
+  registerAuthRoutes(app, {
+    role,
+    peerPort: role === 'teacher' ? config.studentPort : config.port,
+  })
 
   // 交卷是两端唯一的共用写接口
   registerAttemptRoutes(app, { repo: deps.repo })

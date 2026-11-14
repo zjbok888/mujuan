@@ -2,11 +2,18 @@ import { loadConfig } from './config.js'
 import { buildApp } from './app.js'
 import { createRepo } from './infra/repo.js'
 import { getProvider, isDemo } from './settings.js'
+import { ensureBootstrapTeacher } from './auth/users.js'
 
 async function main(): Promise<void> {
   const config = loadConfig()
   const repo = await createRepo(config)
   await repo.init()
+
+  const boot = ensureBootstrapTeacher()
+  if (boot.created) {
+    console.log(`[mujuan] 已创建首个教师账号：${boot.username} / ${boot.password}`)
+    console.log('[mujuan] 请登录后到「成员」页修改密码，或设置 TEACHER_USER / TEACHER_PASSWORD 环境变量')
+  }
 
   // 同一个进程、同一个库，两个端口各跑一个应用：
   // 教师端和学生端的路由面、AI 助手都是分开的。

@@ -3,6 +3,10 @@ import type { AssistantContext } from '@shared/assistant.js'
 import { api } from './api.js'
 import { Assistant } from './components/assistant.js'
 import { generation, generationProgress } from './generation.js'
+import type { PublicUser } from '@shared/auth.js'
+import { fetchMe, logout } from './auth.js'
+import { LoginPage } from './pages/login.js'
+import { MembersPage } from './pages/members.js'
 import { ComposePage } from './pages/compose.js'
 import { LibraryPage } from './pages/library.js'
 import { PaperPage } from './pages/paper.js'
@@ -17,6 +21,7 @@ export type Route =
   | { name: 'library' }
   | { name: 'student' }
   | { name: 'settings' }
+  | { name: 'members' }
   | { name: 'paper'; id: string }
   | { name: 'take'; id: string }
   | { name: 'stats'; id: string }
@@ -28,6 +33,7 @@ function parseRoute(hash: string): Route {
   if (head === 'library') return { name: 'library' }
   if (head === 'student') return { name: 'student' }
   if (head === 'settings') return { name: 'settings' }
+  if (head === 'members') return { name: 'members' }
   if (head === 'paper' && id) return { name: 'paper', id }
   if (head === 'take' && id) return { name: 'take', id }
   if (head === 'stats' && id) return { name: 'stats', id }
@@ -45,6 +51,8 @@ export interface Health {
   driver: string
   model: string
   version: string
+  /** 另一端的端口，用于登录页引导 */
+  peerPort?: number
   /** 仅教师端返回：学生端端口 */
   studentPort?: number
 }
@@ -56,8 +64,18 @@ const ROLE_ID: 'teacher' | 'student' =
 export function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash))
   const [health, setHealth] = useState<Health | null>(null)
+  const [user, setUser] = useState<PublicUser | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const run = useSyncExternalStore(generation.subscribe, generation.getSnapshot)
   const { filled, total } = generationProgress(run)
+
+  // 没有会话就先过登录页；服务端仍然逐个接口校验，前端这层只是体验
+  useEffect(() => {
+    fetchMe()
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setAuthChecked(true))
+  }, [])
 
   useEffect(() => {
     const onHash = () => {
@@ -82,13 +100,20 @@ export function App() {
     return () => window.removeEventListener('mujuan:settings-changed', onChange)
   }, [])
 
+  // 所有 hook 必须在任何提前 return 之前——否则登录前后挂载的 hook 数量不同，
+  // React 会直接抛 #310（Rendered more hooks than during the previous render）。
   const go = useCallback((path: string) => navigate(path), [])
+
+  if (!authChecked) return <div className="stage-empty" style={{ paddingTop: 120 }}>载入中…</div>
+  if (!user) {
+    return <LoginPage role={ROLE_ID} peerPort={health?.peerPort} onLoggedIn={setUser} />
+  }
 
   // 同一个构建产物，两端各自注入角色：教师端渲染出卷/卷库/接入，学生端只渲染试卷与错题
   const ROLE: 'teacher' | 'student' = ROLE_ID
   const allowed: Route['name'][] =
     ROLE === 'teacher'
-      ? ['compose', 'library', 'paper', 'take', 'stats', 'settings']
+      ? ['compose', 'library', 'paper', 'take', 'stats', 'settings', 'members']
       : ['student', 'take', 'review']
   // 直接敲别的端的地址也不该串台，回落本端首页
   const view: Route = allowed.includes(route.name)
@@ -126,6 +151,9 @@ export function App() {
               <a href="#/settings" className={view.name === 'settings' ? 'active' : ''}>
                 <i className="dot" />接入
               </a>
+              <a href="#/members" className={view.name === 'members' ? 'active' : ''}>
+                <i className="dot" />成员
+              </a>
             </>
           ) : (
             <>
@@ -159,6 +187,17 @@ export function App() {
             )}
           </div>
           <div>{health ? `存储 ${health.driver} · v${health.version}` : '—'}</div>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span className="tag">{user.role === 'teacher' ? '老师' : '学生'} · {user.displayName}</span>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                void logout().finally(() => setUser(null))
+              }}
+            >
+              退出
+            </button>
+          </div>
           {ROLE === 'teacher' && health?.studentPort && (
             <div style={{ marginTop: 8 }}>
               <a
@@ -166,7 +205,7 @@ export function App() {
                 href={`http://${window.location.hostname}:${health.studentPort}/`}
                 target="_blank"
                 rel="noreferrer"
-                title={`学生端在 ${health.studentPort} 端口，学生打开这个地址作答，不需要账号`}
+                title={`学生端在 ${health.studentPort} 端口，学生用老师分配的账号登录`}
               >
                 学生端入口 ↗
               </a>
@@ -182,6 +221,7 @@ export function App() {
         {view.name === 'student' && <StudentPage onNavigate={go} />}
         {view.name === 'review' && <ReviewPage id={view.id} onNavigate={go} />}
         {view.name === 'settings' && <SettingsPage />}
+        {view.name === 'members' && <MembersPage />}
         {view.name === 'paper' && <PaperPage id={view.id} onNavigate={go} />}
         {view.name === 'take' && <TakePage id={view.id} onNavigate={go} />}
         {view.name === 'stats' && <StatsPage id={view.id} onNavigate={go} />}

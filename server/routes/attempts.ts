@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type { PaperRepo } from '../infra/repo.js'
+import { currentUser } from '../auth/session.js'
 
 const attemptBodySchema = z.object({
   paperId: z.string().min(1).max(64),
@@ -25,13 +26,16 @@ export function registerAttemptRoutes(app: FastifyInstance, deps: { repo: PaperR
 
     // 草稿也允许试答：老师需要在发布前自己走一遍。
     // 这类提交标记为 preview——入库、可回看，但不计入学情统计。
+    // 身份来自会话，不采信请求体里的 student——否则学生可以冒充任何人交卷
+    const user = currentUser(request)
+    if (!user) return reply.code(401).send({ error: 'UNAUTHENTICATED', message: '请先登录' })
     const preview = record.status !== 'published'
 
     const { gradePaper } = await import('../domain/grader.js')
     const result = gradePaper(record.ir, parsed.data.answers)
     const attempt = await deps.repo.createAttempt({
       paperId: record.id,
-      student: parsed.data.student,
+      student: user.displayName,
       score: result.score,
       maxScore: result.maxScore,
       preview,

@@ -23,7 +23,6 @@ interface MyAttempt {
   wrong: number
 }
 
-const NAME_KEY = 'mujuan:student'
 
 function formatTime(iso: string): string {
   const date = new Date(iso)
@@ -33,71 +32,36 @@ function formatTime(iso: string): string {
 }
 
 export function StudentPage({ onNavigate }: { onNavigate: (path: string) => void }) {
-  const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? '')
   const [papers, setPapers] = useState<StudentPaper[] | null>(null)
   const [attempts, setAttempts] = useState<MyAttempt[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (name.trim()) localStorage.setItem(NAME_KEY, name.trim())
-  }, [name])
-
-  // 输入名字时不要每敲一个字就打一次接口
+  // 身份由登录态决定，不再让学生自己填名字——填名字等于可以冒充别人
   useEffect(() => {
     let alive = true
-    const timer = setTimeout(() => {
-      const who = name.trim()
-      const query = who ? `?student=${encodeURIComponent(who)}` : ''
-      Promise.all([
-        api.get<{ items: StudentPaper[] }>(`/api/student/papers${query}`),
-        who ? api.get<{ items: MyAttempt[] }>(`/api/student/attempts${query}`) : Promise.resolve({ items: [] }),
-      ])
-        .then(([paperRes, attemptRes]) => {
-          if (!alive) return
-          setPapers(paperRes.items)
-          setAttempts(attemptRes.items)
-        })
-        .catch((err: Error) => {
-          if (alive) setError(err.message)
-        })
-    }, 350)
-
+    Promise.all([
+      api.get<{ items: StudentPaper[] }>('/api/student/papers'),
+      api.get<{ items: MyAttempt[] }>('/api/student/attempts'),
+    ])
+      .then(([paperRes, attemptRes]) => {
+        if (!alive) return
+        setPapers(paperRes.items)
+        setAttempts(attemptRes.items)
+      })
+      .catch((err: Error) => {
+        if (alive) setError(err.message)
+      })
     return () => {
       alive = false
-      clearTimeout(timer)
     }
-  }, [name])
-
-  const who = name.trim()
+  }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <header className="page-head">
         <h1>学生端</h1>
-        <p>这里只有老师已经发布的卷子。填一次名字，成绩和错题都会记在这里。</p>
+        <p>这里只有老师已经发布的卷子。你的成绩与错题都记在当前账号下。</p>
       </header>
-
-      <section className="card panel" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <label className="field" style={{ margin: 0, minWidth: 220 }}>
-          <span className="label">我的名字</span>
-          <input
-            className="input"
-            placeholder="例如：林小满"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={16}
-          />
-        </label>
-        {who ? (
-          <span className="muted" style={{ fontSize: 12.5 }}>
-            已按「<strong>{who}</strong>」筛选成绩。换名字会看到另一份记录。
-          </span>
-        ) : (
-          <span className="muted" style={{ fontSize: 12.5 }}>
-            没填名字也能答题，但成绩不会归到你名下。
-          </span>
-        )}
-      </section>
 
       {error && <div className="statusbar err">{error}</div>}
 
@@ -146,7 +110,7 @@ export function StudentPage({ onNavigate }: { onNavigate: (path: string) => void
         )}
       </section>
 
-      {who && (
+      {attempts && (
         <section>
           <h2 style={{ marginBottom: 10 }}>我的成绩</h2>
           {attempts.length === 0 ? (
