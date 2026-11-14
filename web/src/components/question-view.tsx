@@ -23,7 +23,7 @@ export function QuestionView({
   const status = STATUS_TAG[question.status]
 
   return (
-    <article className="qcard" style={compact ? { padding: '12px 14px' } : undefined}>
+    <article className={compact ? 'qcard qcard-compact' : 'qcard'}>
       <div className="qcard-head">
         <span className="qnum">{String(index + 1).padStart(2, '0')}</span>
         <span className="tag">{QUESTION_TYPE_LABEL[question.type]}</span>
@@ -65,10 +65,12 @@ export function QuestionView({
         </div>
       )}
 
-      <div className="qmeta">
-        <span>知识点：{question.knowledgePoints.join('、') || '未标注'}</span>
-        <span className="mono">{question.id}</span>
-      </div>
+      {!compact && (
+        <div className="qmeta">
+          <span>知识点：{question.knowledgePoints.join('、') || '未标注'}</span>
+          <span className="mono">{question.id}</span>
+        </div>
+      )}
     </article>
   )
 }

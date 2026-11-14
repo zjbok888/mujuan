@@ -69,12 +69,18 @@ function rescale(points: number[], target: number): number[] {
 
 export function createDemoPort(paper: PaperIR, stepMs = 16): LlmPort {
   // 按题型分队列：回放必须能应对评委随手改的题型配比，不能只会顺序取题
-  const queues = new Map<QuestionType, Question[]>()
-  for (const question of paper.sections.flatMap((s) => s.questions)) {
-    const list = queues.get(question.type) ?? []
-    list.push(question)
-    queues.set(question.type, list)
+  const buildQueues = (): Map<QuestionType, Question[]> => {
+    const map = new Map<QuestionType, Question[]>()
+    for (const question of paper.sections.flatMap((s) => s.questions)) {
+      const list = map.get(question.type) ?? []
+      list.push(question)
+      map.set(question.type, list)
+    }
+    return map
   }
+
+  // 每轮生成开始时重置，否则第二次点"生成"就会拿到空队列
+  let queues = buildQueues()
 
   return async (messages, options) => {
     const user = messages[1]?.content ?? ''
@@ -99,6 +105,7 @@ export function createDemoPort(paper: PaperIR, stepMs = 16): LlmPort {
     }
 
     if (planMode) {
+      queues = buildQueues()
       await sleep(stepMs * 4)
       return JSON.stringify({
         title: paper.title,

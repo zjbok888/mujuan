@@ -351,6 +351,22 @@ export function ComposePage({ onNavigate }: { onNavigate: (path: string) => void
           </div>
         )}
 
+        {paperId && (
+          <div className="card panel" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '14px 18px' }}>
+            <span style={{ fontSize: 13 }}>
+              试卷已生成{issues && issues.length > 0 ? '（含待复核项）' : ''}，可以进入编辑与发布。
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button className="btn btn-sm" onClick={() => onNavigate(`/paper/${paperId}`)}>
+                打开试卷
+              </button>
+              <button className="btn btn-sm btn-seal" onClick={() => onNavigate(`/take/${paperId}`)}>
+                立即试答
+              </button>
+            </div>
+          </div>
+        )}
+
         {items.length === 0 && !running && (
           <div className="stage-empty">
             <div className="glyph">卷</div>
@@ -364,28 +380,12 @@ export function ComposePage({ onNavigate }: { onNavigate: (path: string) => void
         <div className="qlist">
           {items.map((item, index) =>
             item ? (
-              <QuestionView key={item.id} index={index} question={item} />
+              <QuestionView key={item.id} index={index} question={item} compact />
             ) : running ? (
               <div className="skeleton" key={`sk-${index}`} />
             ) : null,
           )}
         </div>
-
-        {paperId && (
-          <div className="card panel" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13 }}>
-              试卷已生成{issues && issues.length > 0 ? '（含待复核项）' : ''}，可以直接进入编辑与发布。
-            </span>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm" onClick={() => onNavigate(`/paper/${paperId}`)}>
-                打开试卷
-              </button>
-              <button className="btn btn-sm btn-seal" onClick={() => onNavigate(`/take/${paperId}`)}>
-                立即试答
-              </button>
-            </div>
-          </div>
-        )}
       </section>
     </div>
   )

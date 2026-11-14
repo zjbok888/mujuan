@@ -223,8 +223,22 @@ input, textarea, select {
 
 .compose { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 22px; align-items: start; }
 
+/* 右栏试卷会很长：让左栏吸顶跟随，滚到哪儿都能改指令，也消除大片留白 */
+.compose > .panel {
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.compose > .panel::-webkit-scrollbar { width: 6px; }
+.compose > .panel::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+
 @media (max-width: 1080px) {
   .compose { grid-template-columns: 1fr; }
+  .compose > .panel { position: static; max-height: none; overflow: visible; }
   .rail { display: none; }
   .main { padding: 24px 18px 60px; }
 }
@@ -337,6 +351,15 @@ input, textarea, select {
   animation: rise 0.32s cubic-bezier(.2,.7,.3,1) both;
 }
 @keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+/* 出卷页的预览态：只要看清"长出来了什么"，细节留给试卷页 */
+.qcard-compact { padding: 11px 14px; }
+.qcard-compact .qcard-head { margin-bottom: 6px; }
+.qcard-compact .qstem { font-size: 13.5px; line-height: 1.75; }
+.qcard-compact .qoptions { margin-top: 7px; gap: 0; }
+.qcard-compact .qoptions li { padding: 1px 0; font-size: 13px; }
+.qcard-compact .qoptions .k { width: 17px; height: 17px; font-size: 11px; }
+
 
 .qcard-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .qnum {
