@@ -6,7 +6,9 @@ export function registerStatsRoutes(app: FastifyInstance, deps: RouteDeps): void
   app.get<{ Params: { id: string } }>('/api/papers/:id/stats', async (request, reply) => {
     const record = await deps.repo.getPaper(request.params.id)
     if (!record) return reply.code(404).send({ error: 'NOT_FOUND', message: '试卷不存在' })
-    const attempts = await deps.repo.listAttempts(record.id)
+    const allAttempts = await deps.repo.listAttempts(record.id)
+    // 发布前的试答（preview）不计入学情，否则教师自测会污染班级数据
+    const attempts = allAttempts.filter((a) => !a.preview)
     return {
       paperId: record.id,
       title: record.ir.title,

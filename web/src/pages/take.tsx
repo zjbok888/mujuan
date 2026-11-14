@@ -16,6 +16,7 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
   const [student, setStudent] = useState('')
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [result, setResult] = useState<GradeResult | null>(null)
+  const [preview, setPreview] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -44,12 +45,18 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
     setBusy(true)
     setError(null)
     try {
-      const res = await api.post<{ score: number; maxScore: number; result: GradeResult }>('/api/attempts', {
+      const res = await api.post<{
+        score: number
+        maxScore: number
+        preview: boolean
+        result: GradeResult
+      }>('/api/attempts', {
         paperId: data.id,
         student: student.trim() || '匿名同学',
         answers,
       })
       setResult(res.result)
+      setPreview(res.preview)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setError((err as Error).message)
@@ -76,6 +83,11 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
               得分率 {Math.round((result.score / result.maxScore) * 100)}%
             </span>
           </div>
+          {preview && (
+            <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>
+              这是发布前的试答：分数照常计算，但 <strong>不计入学情统计</strong>。发布后再交卷才是正式成绩。
+            </p>
+          )}
           {result.needsReview.length > 0 && (
             <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
               其中 {result.needsReview.length} 道简答题由关键词细则评分，已进入教师复核队列。

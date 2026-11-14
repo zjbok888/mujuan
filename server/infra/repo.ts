@@ -42,6 +42,8 @@ export interface AttemptRecord {
   submittedAt: string
   score: number
   maxScore: number
+  /** 未发布试卷的试答：入库但计入学情统计 */
+  preview?: boolean
   result: GradeResult
 }
 

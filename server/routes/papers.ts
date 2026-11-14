@@ -184,9 +184,10 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
     }
     const record = await repo.getPaper(parsed.data.paperId)
     if (!record) return reply.code(404).send({ error: 'NOT_FOUND', message: '试卷不存在' })
-    if (record.status !== 'published') {
-      return reply.code(409).send({ error: 'NOT_PUBLISHED', message: '试卷尚未发布' })
-    }
+
+    // 草稿也允许试答：老师需要在发布前自己走一遍。
+    // 这类提交标记为 preview——入库、可回看，但不计入学情统计。
+    const preview = record.status !== 'published'
 
     const { gradePaper } = await import('../domain/grader.js')
     const result = gradePaper(record.ir, parsed.data.answers)
@@ -195,8 +196,9 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
       student: parsed.data.student,
       score: result.score,
       maxScore: result.maxScore,
+      preview,
       result,
     })
-    return { attemptId: attempt.id, score: result.score, maxScore: result.maxScore, result }
+    return { attemptId: attempt.id, score: result.score, maxScore: result.maxScore, preview, result }
   })
 }

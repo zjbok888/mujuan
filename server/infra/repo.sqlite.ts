@@ -30,6 +30,7 @@ interface AttemptRow {
   score: number
   max_score: number
   result_json: string
+  preview?: number
 }
 
 function toRecord(row: PaperRow): PaperRecord {
@@ -70,6 +71,12 @@ export async function createSqliteRepo(dataDir: string): Promise<PaperRepo> {
       );
       CREATE INDEX IF NOT EXISTS idx_attempts_paper ON attempts(paper_id);
     `)
+
+    // 老库平滑升级：早期版本没有 preview 列，补上而不是要求用户删库
+    const columns = db.prepare('PRAGMA table_info(attempts)').all() as Array<{ name?: string }>
+    if (!columns.some((column) => column.name === 'preview')) {
+      db.exec('ALTER TABLE attempts ADD COLUMN preview INTEGER NOT NULL DEFAULT 0')
+    }
   }
 
   const readPaper = (id: string): PaperRecord | null => {
@@ -143,7 +150,7 @@ export async function createSqliteRepo(dataDir: string): Promise<PaperRepo> {
         ...input,
       }
       db.prepare(
-        'INSERT INTO attempts (id, paper_id, student, submitted_at, score, max_score, result_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO attempts (id, paper_id, student, submitted_at, score, max_score, result_json, preview) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       ).run(
         record.id,
         record.paperId,
@@ -152,6 +159,7 @@ export async function createSqliteRepo(dataDir: string): Promise<PaperRepo> {
         record.score,
         record.maxScore,
         JSON.stringify(record.result),
+        record.preview ? 1 : 0,
       )
       return record
     },
@@ -167,6 +175,7 @@ export async function createSqliteRepo(dataDir: string): Promise<PaperRepo> {
         submittedAt: row.submitted_at,
         score: row.score,
         maxScore: row.max_score,
+        preview: Number(row.preview ?? 0) === 1,
         result: JSON.parse(row.result_json) as GradeResult,
       }))
     },

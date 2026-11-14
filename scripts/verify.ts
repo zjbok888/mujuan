@@ -140,6 +140,34 @@ check('学情统计与作答一致', async () => {
   return `${body.stats.submissions} 份 · 平均 ${body.stats.avgPercent}% · ${body.stats.knowledge.length} 个知识点`
 })
 
+check('草稿试答：可交卷但不污染学情', async () => {
+  if (!generated) throw new Error('前置步骤未完成')
+  // 新建一份草稿（不发布），直接交卷
+  const draft = await repo.createPaper(generated.ir)
+  const questions = generated.ir.sections.flatMap((s) => s.questions)
+  const answers: Record<string, string[]> = {}
+  for (const q of questions) answers[q.id] = q.answers
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/attempts',
+    payload: { paperId: draft.id, student: '试答老师', answers },
+  })
+  if (res.statusCode !== 200) {
+    throw new Error(`草稿试答应被接受，实际 ${res.statusCode}：${res.body.slice(0, 120)}`)
+  }
+  const body = res.json() as { preview: boolean; score: number }
+  if (!body.preview) throw new Error('草稿试答未被标记 preview')
+
+  const statsRes = await app.inject({ method: 'GET', url: `/api/papers/${draft.id}/stats` })
+  const stats = statsRes.json() as { stats: { submissions: number } }
+  if (stats.stats.submissions !== 0) {
+    throw new Error(`试答不应计入统计，实际 ${stats.stats.submissions} 份`)
+  }
+  await repo.deletePaper(draft.id)
+  return `得 ${body.score} 分，统计仍为 0 份`
+})
+
 check('IR 导出可下载且结构完整', async () => {
   const res = await app.inject({ method: 'GET', url: `/api/papers/${paperId}/paper.json` })
   if (res.statusCode !== 200) throw new Error(`导出失败 ${res.statusCode}`)
