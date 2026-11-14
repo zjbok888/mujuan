@@ -1,4 +1,5 @@
 import type { ServerEvent } from '@shared/events'
+import type { AssistantEvent } from '@shared/assistant'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 只在真的有 body 时才声明 application/json。
@@ -31,19 +32,20 @@ export const api = {
 }
 
 /**
- * 生成流：POST + ReadableStream（EventSource 只支持 GET，无法带 body）。
+ * 流式 POST：EventSource 只支持 GET，带 body 只能自己读 ReadableStream。
  * 返回 abort 函数，用于用户主动取消或组件卸载。
  */
-export function streamGenerate(
+function streamPost<T>(
+  path: string,
   body: unknown,
-  onEvent: (event: ServerEvent) => void,
+  onEvent: (event: T) => void,
   onError: (message: string) => void,
 ): () => void {
   const controller = new AbortController()
 
   void (async () => {
     try {
-      const res = await fetch('/api/papers/generate', {
+      const res = await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -52,7 +54,7 @@ export function streamGenerate(
 
       if (!res.ok || !res.body) {
         const detail = (await res.json().catch(() => null)) as { message?: string } | null
-        onError(detail?.message ?? `生成失败（${res.status}）`)
+        onError(detail?.message ?? `请求失败（${res.status}）`)
         return
       }
 
@@ -74,7 +76,7 @@ export function streamGenerate(
             const payload = line.slice(5).trim()
             if (!payload) continue
             try {
-              onEvent(JSON.parse(payload) as ServerEvent)
+              onEvent(JSON.parse(payload) as T)
             } catch {
               // 半截帧或非 JSON 注释帧：忽略，等待下一帧
             }
@@ -89,4 +91,20 @@ export function streamGenerate(
   })()
 
   return () => controller.abort()
+}
+
+export function streamGenerate(
+  body: unknown,
+  onEvent: (event: ServerEvent) => void,
+  onError: (message: string) => void,
+): () => void {
+  return streamPost('/api/papers/generate', body, onEvent, onError)
+}
+
+export function streamAssistant(
+  body: unknown,
+  onEvent: (event: AssistantEvent) => void,
+  onError: (message: string) => void,
+): () => void {
+  return streamPost('/api/assistant/chat', body, onEvent, onError)
 }

@@ -10,6 +10,7 @@ import { getProvider, getTimeoutMs, isDemo } from './settings.js'
 import { registerPaperRoutes } from './routes/papers.js'
 import { registerStatsRoutes } from './routes/stats.js'
 import { registerSettingsRoutes } from './routes/settings.js'
+import { registerAssistantRoutes } from './routes/assistant.js'
 
 export interface AppDeps {
   config: AppConfig
@@ -35,6 +36,7 @@ function createLivePort(): LlmPort {
         json: options.json,
         signal: options.signal,
         onReasoning: options.onReasoning,
+        onContent: options.onContent,
         maxTokens: options.maxTokens,
       },
     )
@@ -96,6 +98,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerPaperRoutes(app, { config, repo: deps.repo, makeLlmPort })
   registerStatsRoutes(app, { config, repo: deps.repo, makeLlmPort })
   registerSettingsRoutes(app)
+  registerAssistantRoutes(app, { config, repo: deps.repo, makeLlmPort })
 
   if (existsSync(config.webDist)) {
     // 不要关掉 wildcard：关掉之后只有 "/" 能被服务，/assets/* 全部 404，页面白屏

@@ -223,6 +223,20 @@ check('IR 导出可下载且结构完整', async () => {
   return `${res.body.length} 字节 · schema ${parsed.data.schema}`
 })
 
+check('演示模式下助手明确拒绝而非假装回答', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/assistant/chat',
+    payload: { messages: [{ role: 'user', content: '你好' }], context: { page: 'compose' } },
+  })
+  if (res.statusCode !== 409) {
+    throw new Error(`演示模式下应返回 409，实际 ${res.statusCode}`)
+  }
+  const body = res.json() as { error?: string }
+  if (body.error !== 'DEMO_MODE') throw new Error('缺少 DEMO_MODE 错误码')
+  return '返回 409 DEMO_MODE，引导先去配置接入'
+})
+
 check('无 Key 回放具备确定性', async () => {
   const demo = loadDemoPaper()
   const again = await generatePaper({

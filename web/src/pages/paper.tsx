@@ -23,11 +23,24 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
   })
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
+  const load = (): void => {
     api
       .get<PaperResponse>(`/api/papers/${id}`)
       .then(setData)
       .catch((err: Error) => setError(err.message))
+  }
+
+  useEffect(load, [id])
+
+  // 助手改完题会广播这个事件：页面必须重新拉一次，否则老师看到的是旧题干
+  useEffect(() => {
+    const handler = (event: Event): void => {
+      const detail = (event as CustomEvent<{ paperId?: string }>).detail
+      if (!detail?.paperId || detail.paperId === id) load()
+    }
+    window.addEventListener('mujuan:paper-updated', handler)
+    return () => window.removeEventListener('mujuan:paper-updated', handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   const patchLocal = (question: Question): void => {

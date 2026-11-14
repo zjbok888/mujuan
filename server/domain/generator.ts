@@ -15,7 +15,14 @@ import { issuesToRepairBrief, validatePaper } from './validator.js'
 
 export type LlmPort = (
   messages: ChatMessage[],
-  options: { json: boolean; onReasoning?: (delta: string) => void; signal?: AbortSignal; maxTokens?: number },
+  options: {
+    json: boolean
+    onReasoning?: (delta: string) => void
+    /** 正文增量，只有助手这类"边说边显示"的场景需要 */
+    onContent?: (delta: string) => void
+    signal?: AbortSignal
+    maxTokens?: number
+  },
 ) => Promise<string>
 
 export interface GenerateOptions {

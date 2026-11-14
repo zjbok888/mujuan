@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import type { AssistantContext } from '@shared/assistant.js'
 import { api } from './api.js'
+import { Assistant } from './components/assistant.js'
 import { generation, generationProgress } from './generation.js'
 import { ComposePage } from './pages/compose.js'
 import { LibraryPage } from './pages/library.js'
@@ -70,6 +72,12 @@ export function App() {
 
   const go = useCallback((path: string) => navigate(path), [])
 
+  // 助手需要知道自己"站在哪一页、看的是哪份卷子"
+  const assistantContext: AssistantContext =
+    route.name === 'paper' || route.name === 'take' || route.name === 'stats'
+      ? { page: route.name, paperId: route.id }
+      : { page: route.name }
+
   return (
     <div className="shell">
       <aside className="rail">
@@ -125,6 +133,8 @@ export function App() {
         {route.name === 'take' && <TakePage id={route.id} onNavigate={go} />}
         {route.name === 'stats' && <StatsPage id={route.id} onNavigate={go} />}
       </main>
+
+      <Assistant context={assistantContext} />
     </div>
   )
 }
