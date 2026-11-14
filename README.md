@@ -101,7 +101,7 @@ git clone <repo> mujuan && cd mujuan
 npm ci && npm run build && npm run verify
 ```
 
-结果：`12/12 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
+结果：`14/14 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
 `/assets/*.js` 返回 200，SSE 生成完整跑通（plan → 4 items → validate → paper.done → done）。
 
 ---
@@ -215,6 +215,20 @@ cp .env.example .env
 
 **不变量依旧由系统持有**：改题时 `id / 题型 / 分值` 锁死，模型只能改内容；
 改完仍要过校验器，有问题会标注"建议复核"。
+
+### 出卷之后的三个闭环
+
+一张卷子要真正跑完，得经过「发卷 → 考试 → 阅卷」，这三段之前都是断的，现在补齐：
+
+| 环节 | 功能 | 说明 |
+|---|---|---|
+| 发卷 | **学生版 / 教师版** | 试卷页一键切换；教师版附答案解析，卷尾输出「答案速查表」，打印即得两份卷 |
+| 考试 | **限时与自动交卷** | 按试卷时长倒计时（剩 5 分钟变黄、1 分钟变红），到点自动交卷出分 |
+| 阅卷 | **成绩导出 CSV** | 学情页一键导出，带 UTF-8 BOM——不带的话 Excel 打开中文全是乱码 |
+
+计时存的是 `deadline` 时间戳而不是逐秒递减，所以切走标签页再回来，剩余时间依然准确。
+
+![考试倒计时](docs/screenshots/take-countdown.png)
 
 ### 目录结构
 
