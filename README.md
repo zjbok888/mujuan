@@ -31,6 +31,21 @@ npm run build        # 构建前端（约 1 秒）
 npm start            # 启动，访问 http://127.0.0.1:4000
 ```
 
+### 1.2.1 或者：双击启动 / 关闭
+
+| 系统 | 启动 | 关闭 |
+|---|---|---|
+| Windows | 双击 **`start.bat`** | 双击 **`stop.bat`** |
+| macOS / Linux | `./start.sh` | `./stop.sh` |
+| 任意（npm） | `npm run serve` | `npm run stop` |
+
+脚本会自动完成这一串：**检查 Node 版本 → 缺依赖就装 → 缺前端产物就构建 → 后台启动 → 等健康检查通过 → 打开浏览器**。
+
+- 已在运行时再次双击，只会提示地址并打开浏览器，不会再起第二个进程；
+- 停止时按 `.runtime/server.pid` 精确定位，用 `taskkill /T` 结束整棵进程树，不会误伤机器上其他 node；
+- 日志写在 `logs/server.log`；
+- 想换端口：`set PORT=4001 && start.bat`（macOS/Linux 用 `PORT=4001 ./start.sh`）。
+
 ### 1.3 自检（评委请先跑这一条）
 
 ```bash

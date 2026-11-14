@@ -13,6 +13,9 @@ data/*.db-shm
 data/settings.json
 !data/.gitkeep
 
+.runtime/
+logs/
+
 coverage/
 *.log
 npm-debug.log*
