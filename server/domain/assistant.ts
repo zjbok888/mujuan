@@ -1,7 +1,8 @@
 import type { AssistantChatInput, AssistantEvent, ReviseAction } from '../../shared/assistant.js'
 import { reviseActionSchema } from '../../shared/assistant.js'
+import type { PaperIR } from '../../shared/ir.js'
 import { LlmError } from '../infra/llm.js'
-import { buildAssistantMessages } from '../prompts/assistant.js'
+import { buildAssistantMessages, buildStudentMessages } from '../prompts/assistant.js'
 import type { PaperRepo } from '../infra/repo.js'
 import type { LlmPort } from './generator.js'
 import { rewriteQuestion } from './rewriter.js'
@@ -132,4 +133,27 @@ export async function runAssistant(opts: AssistantOptions): Promise<void> {
     const message = error instanceof LlmError ? error.message : (error as Error).message
     emit({ type: 'action.failed', action, message })
   }
+}
+
+/**
+ * 学生端学习助手：只说话，不动手。
+ *
+ * 刻意不做动作解析——学生端本来就没有改卷能力，
+ * 与其"解析后拒绝"，不如让这条路径根本不存在。
+ */
+export async function runStudentTutor(options: {
+  paper: PaperIR | null
+  history: Array<{ role: 'user' | 'assistant'; content: string }>
+  llm: LlmPort
+  emit: (event: AssistantEvent) => void
+  signal?: AbortSignal
+}): Promise<void> {
+  const messages = buildStudentMessages(options.paper, options.history)
+
+  await options.llm(messages, {
+    json: false,
+    signal: options.signal,
+    maxTokens: 1500,
+    onContent: (delta) => options.emit({ type: 'assistant.delta', text: delta }),
+  })
 }

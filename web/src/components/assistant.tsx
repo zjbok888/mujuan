@@ -11,10 +11,22 @@ interface Message {
   tone?: 'ok' | 'err' | 'busy'
 }
 
-const GREETING: Message = {
-  role: 'assistant',
-  content:
-    '我是命题助手。可以问我怎么把大纲写得更可考，也可以直接让我动手——比如「把第 3 题改难一点」「第 5 题的解析写详细些」。',
+const GREETING: Record<'teacher' | 'student', Message> = {
+  teacher: {
+    role: 'assistant',
+    content:
+      '我是命题助手。可以问我怎么把大纲写得更可考，也可以直接让我动手——比如「把第 3 题改难一点」「第 5 题的解析写详细些」。',
+  },
+  student: {
+    role: 'assistant',
+    content:
+      '我是学习助手。哪道题不懂就问我，我会讲这道题考什么、你错在哪、下次怎么避开。',
+  },
+}
+
+const PLACEHOLDER: Record<'teacher' | 'student', string> = {
+  teacher: '比如：把第 3 题改难一点 / 这份卷子偏简单，怎么调？',
+  student: '比如：第 2 题为什么选 C 不选 A？',
 }
 
 const PANEL_W = 420
@@ -115,9 +127,16 @@ function useDraggable(storageKey: string, width: number, height: number) {
  * 全局 AI 助手：居中悬浮窗，标题栏可拖动，收起后变成可拖动的小浮球。
  * 它不只是聊天——模型可以在回答末尾挂一个动作块，服务端会真的去改题。
  */
-export function Assistant({ context }: { context: AssistantContext }) {
+export function Assistant({
+  context,
+  role = 'teacher',
+}: {
+  context: AssistantContext
+  /** 两端各用各的接口和提示词：教师端能改题，学生端只能讲解 */
+  role?: 'teacher' | 'student'
+}) {
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([GREETING])
+  const [messages, setMessages] = useState<Message[]>([GREETING[role]])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -226,6 +245,7 @@ export function Assistant({ context }: { context: AssistantContext }) {
     }
 
     abortRef.current = streamAssistant(
+      role === 'teacher' ? '/api/assistant/chat' : '/api/student/assistant',
       {
         messages: [...history, { role: 'user', content: text }],
         context: requestContext,
@@ -315,7 +335,7 @@ export function Assistant({ context }: { context: AssistantContext }) {
       <div className="assistant-input">
         <textarea
           value={input}
-          placeholder="比如：把第 3 题改难一点 / 这份卷子偏简单，怎么调？"
+          placeholder={PLACEHOLDER[role]}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

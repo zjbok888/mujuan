@@ -1,5 +1,12 @@
 import type { FastifyInstance } from 'fastify'
+import { assistantChatSchema, encodeAssistantSse, type AssistantEvent } from '../../shared/assistant.js'
+import { SSE_HEADERS } from '../../shared/events.js'
+import { runStudentTutor } from '../domain/assistant.js'
+import type { LlmPort } from '../domain/generator.js'
+import { LlmError } from '../infra/llm.js'
+import { createRateLimiter } from '../infra/rate-limit.js'
 import type { PaperRepo } from '../infra/repo.js'
+import { isDemo } from '../settings.js'
 import type { PaperIR } from '../../shared/ir.js'
 
 /**
@@ -11,6 +18,7 @@ import type { PaperIR } from '../../shared/ir.js'
  */
 export interface StudentDeps {
   repo: PaperRepo
+  makeLlmPort: (signal: AbortSignal) => LlmPort
 }
 
 interface StudentPaper {
@@ -32,6 +40,8 @@ function nameOf(value: unknown): string {
 }
 
 export function registerStudentRoutes(app: FastifyInstance, deps: StudentDeps): void {
+  const allowAssistant = createRateLimiter(20, 60_000)
+
   /** 学生能看到的卷子：只有已发布的 */
   app.get<{ Querystring: { student?: string } }>('/api/student/papers', async (request) => {
     const student = nameOf(request.query.student)
@@ -140,6 +150,59 @@ export function registerStudentRoutes(app: FastifyInstance, deps: StudentDeps): 
           }
         })
         .filter((item): item is NonNullable<typeof item> => item !== null),
+    }
+  })
+
+  /** 学生端 AI：只讲解，不能改卷；只能看到已发布的试卷 */
+  app.post('/api/student/assistant', async (request, reply) => {
+    const parsed = assistantChatSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'INVALID_REQUEST', message: '对话内容不合法' })
+    }
+    if (!allowAssistant(request.ip)) {
+      return reply.code(429).send({ error: 'RATE_LIMITED', message: '提问太频繁，歇一下再问' })
+    }
+    if (isDemo()) {
+      return reply.code(409).send({
+        error: 'DEMO_MODE',
+        message: '当前是演示模式：AI 讲解需要真实模型，请老师先在教师端配置。',
+      })
+    }
+
+    // 只允许读已发布试卷；草稿对学生在任何路径上都不可见
+    let paper: PaperIR | null = null
+    const paperId = parsed.data.context.paperId
+    if (paperId) {
+      const record = await deps.repo.getPaper(paperId)
+      if (record && record.status === 'published') paper = record.ir
+    }
+
+    reply.hijack()
+    const res = reply.raw
+    res.writeHead(200, SSE_HEADERS)
+
+    const controller = new AbortController()
+    res.on('close', () => {
+      if (!res.writableEnded) controller.abort()
+    })
+    const emit = (event: AssistantEvent): void => {
+      if (!res.writableEnded) res.write(encodeAssistantSse(event))
+    }
+
+    try {
+      await runStudentTutor({
+        paper,
+        history: parsed.data.messages,
+        llm: deps.makeLlmPort(controller.signal),
+        emit,
+        signal: controller.signal,
+      })
+    } catch (error) {
+      const code = error instanceof LlmError ? error.code : 'INTERNAL'
+      emit({ type: 'error', code, message: error instanceof Error ? error.message : '助手出错了' })
+    } finally {
+      emit({ type: 'done' })
+      res.end()
     }
   })
 }

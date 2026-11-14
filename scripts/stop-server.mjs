@@ -33,6 +33,7 @@ function resolvePort() {
 }
 
 const PORT = resolvePort()
+const STUDENT_PORT = Number(process.env.STUDENT_PORT ?? PORT + 1)
 
 function portOpen(port, timeoutMs = 600) {
   return new Promise((resolve) => {
@@ -120,11 +121,11 @@ if (!killTree(pid)) {
 
 for (let i = 0; i < 20; i += 1) {
   await new Promise((r) => setTimeout(r, 250))
-  if (!(await portOpen(PORT))) break
+  if (!(await portOpen(PORT)) && !(await portOpen(STUDENT_PORT))) break
 }
 
-if (await portOpen(PORT)) {
-  fail(`进程已结束，但端口 ${PORT} 仍被占用，请检查是否有其他实例`)
+if ((await portOpen(PORT)) || (await portOpen(STUDENT_PORT))) {
+  fail(`进程已结束，但端口 ${PORT} / ${STUDENT_PORT} 仍被占用，请检查是否有其他实例`)
   process.exit(1)
 }
 

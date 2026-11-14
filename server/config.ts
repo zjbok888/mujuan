@@ -10,6 +10,8 @@ export interface LlmConfig {
 
 export interface AppConfig {
   port: number
+  /** 学生端单独端口；默认教师端 +1 */
+  studentPort: number
   requestedDbDriver: 'auto' | 'sqlite' | 'json'
   dataDir: string
   webDist: string
@@ -39,6 +41,7 @@ export function loadConfig(): AppConfig {
 
   return {
     port: Number(process.env.PORT ?? 4000),
+    studentPort: Number(process.env.STUDENT_PORT ?? Number(process.env.PORT ?? 4000) + 1),
     requestedDbDriver,
     dataDir: resolve(process.cwd(), process.env.DATA_DIR ?? 'data'),
     webDist: resolve(process.cwd(), 'dist'),

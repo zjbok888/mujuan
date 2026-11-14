@@ -38,18 +38,7 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
   const { config, repo } = deps
   const allowGenerate = createRateLimiter(6, 60_000)
 
-  app.get('/api/health', async () => {
-    const provider = getProvider()
-    const demo = isDemo()
-    return {
-      ok: true,
-      mode: demo ? 'demo' : 'live',
-      driver: repo.driver,
-      provider: provider.kind,
-      model: demo ? 'fixture-replay' : provider.model,
-      version: '0.1.0',
-    }
-  })
+  // /api/health 由 app.ts 统一注册（两端都要有，且要带 role）
 
   // ── 生成：SSE 长连接 ────────────────────────────────────────────────
   app.post('/api/papers/generate', async (request, reply) => {
@@ -180,32 +169,6 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
     }
     reply.header('Content-Disposition', `attachment; filename="${record.id}.paper.json"`)
     return reply.type('application/json; charset=utf-8').send(record.ir)
-  })
-
-  // ── 作答复用：提交 ────────────────────────────────────────────────
-  app.post('/api/attempts', async (request, reply) => {
-    const parsed = attemptBodySchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.code(400).send({ error: 'INVALID_REQUEST', message: '作答数据不合法' })
-    }
-    const record = await repo.getPaper(parsed.data.paperId)
-    if (!record) return reply.code(404).send({ error: 'NOT_FOUND', message: '试卷不存在' })
-
-    // 草稿也允许试答：老师需要在发布前自己走一遍。
-    // 这类提交标记为 preview——入库、可回看，但不计入学情统计。
-    const preview = record.status !== 'published'
-
-    const { gradePaper } = await import('../domain/grader.js')
-    const result = gradePaper(record.ir, parsed.data.answers)
-    const attempt = await repo.createAttempt({
-      paperId: record.id,
-      student: parsed.data.student,
-      score: result.score,
-      maxScore: result.maxScore,
-      preview,
-      result,
-    })
-    return { attemptId: attempt.id, score: result.score, maxScore: result.maxScore, preview, result }
   })
 
   /**

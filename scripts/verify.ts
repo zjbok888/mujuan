@@ -36,7 +36,8 @@ function check(name: string, run: () => Promise<string>): void {
 const config = loadConfig()
 const repo = await createRepo(config)
 await repo.init()
-const app = await buildApp({ config, repo })
+const app = await buildApp({ config, repo, role: 'teacher' })
+const studentApp = await buildApp({ config, repo, role: 'student' })
 
 let paperId = ''
 let generated = null as Awaited<ReturnType<typeof generatePaper>> | null
@@ -158,7 +159,7 @@ check('学生端：只见已发布卷，错题带原始作答', async () => {
   if (!generated) throw new Error('前置步骤未完成')
 
   const draft = await repo.createPaper(generated.ir)
-  const list = await app.inject({ method: 'GET', url: '/api/student/papers' })
+  const list = await studentApp.inject({ method: 'GET', url: '/api/student/papers' })
   if (list.statusCode !== 200) throw new Error(`学生端列表失败 ${list.statusCode}`)
   const items = (list.json() as { items: Array<{ id: string }> }).items
   if (items.some((item) => item.id === draft.id)) throw new Error('草稿出现在了学生端列表')
@@ -169,7 +170,7 @@ check('学生端：只见已发布卷，错题带原始作答', async () => {
   for (const q of questions) {
     answers[q.id] = q.type === 'single' ? ['ZZZ'] : q.answers
   }
-  const created = await app.inject({
+  const created = await studentApp.inject({
     method: 'POST',
     url: '/api/attempts',
     payload: { paperId, student: '自检同学', answers },
@@ -177,7 +178,7 @@ check('学生端：只见已发布卷，错题带原始作答', async () => {
   if (created.statusCode !== 200) throw new Error(`交卷失败 ${created.statusCode}`)
   const attemptId = (created.json() as { attemptId: string }).attemptId
 
-  const detail = await app.inject({ method: 'GET', url: `/api/attempts/${attemptId}` })
+  const detail = await studentApp.inject({ method: 'GET', url: `/api/attempts/${attemptId}` })
   if (detail.statusCode !== 200) throw new Error(`错题回顾失败 ${detail.statusCode}`)
   const body = detail.json() as { review: Array<{ myAnswer?: string[] }> }
   if (body.review.length === 0) throw new Error('错题列表为空')
@@ -185,6 +186,35 @@ check('学生端：只见已发布卷，错题带原始作答', async () => {
 
   await repo.deletePaper(draft.id)
   return `${items.length} 份可见 · ${body.review.length} 道错题可回顾`
+})
+
+check('两端路由面隔离：学生端碰不到出卷与改题', async () => {
+  const health = await studentApp.inject({ method: 'GET', url: '/api/health' })
+  if (health.statusCode !== 200) throw new Error(`学生端健康检查失败 ${health.statusCode}`)
+  const body = health.json() as { role?: string }
+  if (body.role !== 'student') throw new Error(`学生端 role 应为 student，实际 ${body.role}`)
+
+  // 学生端根本不该注册这些路由 —— 是"路不存在"，不是"被权限挡住"
+  const attempts = [
+    ['POST', '/api/papers/generate'],
+    ['PATCH', `/api/papers/${paperId}/questions/q_1`],
+    ['GET', `/api/papers/${paperId}/stats`],
+    ['PUT', '/api/settings'],
+    ['POST', '/api/assistant/chat'],
+  ] as const
+
+  for (const [method, url] of attempts) {
+    const res = await studentApp.inject({ method, url, payload: {} })
+    if (res.statusCode !== 404) {
+      throw new Error(`学生端不应暴露 ${method} ${url}，实际 ${res.statusCode}`)
+    }
+  }
+
+  // 反向也成立：教师端没有学生端入口
+  const reverse = await app.inject({ method: 'GET', url: '/api/student/papers' })
+  if (reverse.statusCode !== 404) throw new Error('教师端不应暴露学生端接口')
+
+  return `${attempts.length} 条教师端接口在学生端均为 404`
 })
 
 check('草稿试答：可交卷但不污染学情', async () => {
@@ -315,6 +345,7 @@ for (const item of checks) {
 }
 
 await app.close()
+await studentApp.close()
 rmSync(process.env.DATA_DIR, { recursive: true, force: true })
 
 const passed = results.filter((r) => r.ok).length

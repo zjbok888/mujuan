@@ -54,8 +54,7 @@ export interface AssistantPromptInput {
 export function buildAssistantMessages(
   input: AssistantPromptInput,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
-): ChatMessage[] {
-  const contextLines: string[] = [`当前页面：${input.context.page}`]
+): ChatMessage[] {  const contextLines: string[] = [`当前页面：${input.context.page}`]
 
   if (input.paper) {
     contextLines.push(describePaper(input.paper))
@@ -76,6 +75,37 @@ export function buildAssistantMessages(
   ]
 
   // 只带最近 8 轮，避免把上下文撑爆
+  for (const item of history.slice(-8)) {
+    messages.push({ role: item.role, content: item.content })
+  }
+  return messages
+}
+
+/**
+ * 学生端的学习助手——和教师端的命题助手是**两套独立提示词**。
+ * 关键差别：它没有任何"动作"，不能改卷子，也拿不到别的学生的数据。
+ */
+const STUDENT_SYSTEM = `你是"墨卷"的学习助手，服务对象是中学生。
+
+你能看到的上下文：这份试卷的题目、标准答案与解析，以及这名学生某次作答的错题。
+
+回答规则：
+- 用中学生听得懂的话：先讲这道题考什么，再讲他错在哪，最后给一句马上能用的方法；
+- 一次回答不超过 200 字，讲清一点比讲全更重要；
+- 只能引用上下文里真实出现的题目和信息，不编造分数、排名、其他同学的任何情况；
+- 你能看到答案，但不要在学生还没作答时直接报答案；如果学生是在问"该怎么做"，先给思路；
+- 你没有修改试卷、查看班级数据的能力，也不要声称能代为操作；
+- 与学习无关的话题礼貌拒绝，把话题带回这道题。`
+
+export function buildStudentMessages(
+  paper: PaperIR | null,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>,
+): ChatMessage[] {
+  const messages: ChatMessage[] = [{ role: 'system', content: STUDENT_SYSTEM }]
+  messages.push({
+    role: 'system',
+    content: paper ? `当前试卷：\n${describePaper(paper)}` : '当前没有可用的试卷信息。',
+  })
   for (const item of history.slice(-8)) {
     messages.push({ role: item.role, content: item.content })
   }

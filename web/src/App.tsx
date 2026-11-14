@@ -47,6 +47,10 @@ export interface Health {
   version: string
 }
 
+/** 服务端按端口注入：同一个构建，教师端 / 学生端渲染不同的页面集 */
+const ROLE_ID: 'teacher' | 'student' =
+  (window as unknown as { __MJUAN_ROLE__?: string }).__MJUAN_ROLE__ === 'student' ? 'student' : 'teacher'
+
 export function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash))
   const [health, setHealth] = useState<Health | null>(null)
@@ -78,13 +82,24 @@ export function App() {
 
   const go = useCallback((path: string) => navigate(path), [])
 
+  // 同一个构建产物，两端各自注入角色：教师端渲染出卷/卷库/接入，学生端只渲染试卷与错题
+  const ROLE: 'teacher' | 'student' = ROLE_ID
+  const allowed: Route['name'][] =
+    ROLE === 'teacher'
+      ? ['compose', 'library', 'paper', 'take', 'stats', 'settings']
+      : ['student', 'take', 'review']
+  // 直接敲别的端的地址也不该串台，回落本端首页
+  const view: Route = allowed.includes(route.name)
+    ? route
+    : { name: ROLE === 'teacher' ? 'compose' : 'student' }
+
   // 助手需要知道自己"站在哪一页、看的是哪份卷子"
   const assistantContext: AssistantContext =
-    route.name === 'paper' || route.name === 'take' || route.name === 'stats'
-      ? { page: route.name, paperId: route.id }
-      : route.name === 'student' || route.name === 'review'
-        ? { page: route.name }
-        : { page: route.name }
+    view.name === 'paper' || view.name === 'take' || view.name === 'stats'
+      ? { page: view.name, paperId: view.id }
+      : view.name === 'student' || view.name === 'review'
+        ? { page: view.name }
+        : { page: view.name }
 
   return (
     <div className="shell">
@@ -98,18 +113,28 @@ export function App() {
         </div>
 
         <nav className="nav">
-          <a href="#/" className={route.name === 'compose' ? 'active' : ''}>
-            <i className="dot" />出卷
-          </a>
-          <a href="#/library" className={route.name === 'library' ? 'active' : ''}>
-            <i className="dot" />卷库
-          </a>
-          <a href="#/student" className={route.name === 'student' ? 'active' : ''}>
-            <i className="dot" />学生端
-          </a>
-          <a href="#/settings" className={route.name === 'settings' ? 'active' : ''}>
-            <i className="dot" />接入
-          </a>
+          {ROLE === 'teacher' ? (
+            <>
+              <a href="#/" className={view.name === 'compose' ? 'active' : ''}>
+                <i className="dot" />出卷
+              </a>
+              <a href="#/library" className={view.name === 'library' ? 'active' : ''}>
+                <i className="dot" />卷库
+              </a>
+              <a href="#/settings" className={view.name === 'settings' ? 'active' : ''}>
+                <i className="dot" />接入
+              </a>
+            </>
+          ) : (
+            <>
+              <a href="#/student" className={view.name === 'student' ? 'active' : ''}>
+                <i className="dot" />试卷
+              </a>
+              <a href="#/student" className={view.name === 'review' ? 'active' : ''}>
+                <i className="dot" />错题回顾
+              </a>
+            </>
+          )}
         </nav>
 
         <div className="rail-foot">
@@ -137,17 +162,17 @@ export function App() {
       </aside>
 
       <main className="main">
-        {route.name === 'compose' && <ComposePage onNavigate={go} />}
-        {route.name === 'library' && <LibraryPage onNavigate={go} />}
-        {route.name === 'student' && <StudentPage onNavigate={go} />}
-        {route.name === 'review' && <ReviewPage id={route.id} onNavigate={go} />}
-        {route.name === 'settings' && <SettingsPage />}
-        {route.name === 'paper' && <PaperPage id={route.id} onNavigate={go} />}
-        {route.name === 'take' && <TakePage id={route.id} onNavigate={go} />}
-        {route.name === 'stats' && <StatsPage id={route.id} onNavigate={go} />}
+        {view.name === 'compose' && <ComposePage onNavigate={go} />}
+        {view.name === 'library' && <LibraryPage onNavigate={go} />}
+        {view.name === 'student' && <StudentPage onNavigate={go} />}
+        {view.name === 'review' && <ReviewPage id={view.id} onNavigate={go} />}
+        {view.name === 'settings' && <SettingsPage />}
+        {view.name === 'paper' && <PaperPage id={view.id} onNavigate={go} />}
+        {view.name === 'take' && <TakePage id={view.id} onNavigate={go} />}
+        {view.name === 'stats' && <StatsPage id={view.id} onNavigate={go} />}
       </main>
 
-      <Assistant context={assistantContext} />
+      <Assistant context={assistantContext} role={ROLE} />
     </div>
   )
 }

@@ -44,7 +44,9 @@ function resolvePort() {
 }
 
 const PORT = resolvePort()
+const STUDENT_PORT = Number(process.env.STUDENT_PORT ?? PORT + 1)
 const URL_BASE = `http://127.0.0.1:${PORT}`
+const STUDENT_URL = `http://127.0.0.1:${STUDENT_PORT}`
 
 function portOpen(port, timeoutMs = 600) {
   return new Promise((resolve) => {
@@ -60,14 +62,21 @@ function portOpen(port, timeoutMs = 600) {
   })
 }
 
-async function health() {
+async function healthOf(base) {
   try {
-    const res = await fetch(`${URL_BASE}/api/health`, { signal: AbortSignal.timeout(1500) })
+    const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(1500) })
     if (!res.ok) return null
     return await res.json()
   } catch {
     return null
   }
+}
+
+/** 两个端口都要就绪才算启动完成 */
+async function health() {
+  const teacher = await healthOf(URL_BASE)
+  const student = await healthOf(STUDENT_URL)
+  return { teacher, student, both: Boolean(teacher && student) }
 }
 
 function runStep(label, command, commandArgs) {
@@ -106,14 +115,16 @@ ok(`Node ${process.versions.node}`)
 
 // ── 2. 已经在跑就不再启动第二个 ──────────────────────────────────────
 const existing = await health()
-if (existing) {
-  ok(`服务已经在运行：${URL_BASE}`)
+if (existing.both) {
+  ok('服务已经在运行')
+  console.log(`  教师端 ${URL_BASE}`)
+  console.log(`  学生端 ${STUDENT_URL}`)
   if (!NO_OPEN) openBrowser(URL_BASE)
   process.exit(0)
 }
-if (await portOpen(PORT)) {
-  fail(`端口 ${PORT} 已被其他程序占用`)
-  console.log('  换个端口启动：set PORT=4001 && start.bat')
+if (await portOpen(PORT) || await portOpen(STUDENT_PORT)) {
+  fail(`端口 ${PORT} / ${STUDENT_PORT} 已被占用`)
+  console.log('  换一组端口：set PORT=4100 && set STUDENT_PORT=4101 && start.bat')
   console.log('  或先执行 stop.bat 看看是不是上一次没关干净')
   process.exit(1)
 }
@@ -153,16 +164,16 @@ if (!child.pid) {
 }
 writeFileSync(pidFile, `${child.pid}\n`, 'utf8')
 
-// ── 5. 等健康检查 ────────────────────────────────────────────────────
+// ── 5. 等健康检查（两个端口都要起来）────────────────────────────────
 console.log(`\n${color('36', '▸')} 等待服务就绪…`)
 let info = null
 for (let i = 0; i < 40; i += 1) {
   await new Promise((r) => setTimeout(r, 500))
   info = await health()
-  if (info) break
+  if (info.both) break
 }
 
-if (!info) {
+if (!info?.both) {
   fail('服务启动超时，最近日志：')
   try {
     const tail = readFileSync(logFile, 'utf8').split('\n').slice(-12).join('\n')
@@ -173,13 +184,14 @@ if (!info) {
   process.exit(1)
 }
 
-const mode = info.mode === 'demo' ? '演示模式（未配置模型接入）' : `在线模式 · ${info.provider} · ${info.model}`
+const mode = info.teacher.mode === 'demo' ? '演示模式（未配置模型接入）' : `在线模式 · ${info.teacher.provider} · ${info.teacher.model}`
 console.log('')
-ok(`服务已启动　${color('1', URL_BASE)}`)
-ok(`进程 ${child.pid}　存储 ${info.driver}　${mode}`)
+ok(`教师端 ${color('1', URL_BASE)}`)
+ok(`学生端 ${color('1', STUDENT_URL)}`)
+ok(`进程 ${child.pid}　存储 ${info.teacher.driver}　${mode}`)
 console.log(`\n  关闭服务：双击 ${color('36', 'stop.bat')}（或执行 node scripts/stop-server.mjs）`)
 console.log(`  运行日志：${logFile}`)
-if (info.mode === 'demo') {
+if (info.teacher.mode === 'demo') {
   console.log(`  提示：想接真实模型，打开 ${URL_BASE}/#/settings`)
 }
 

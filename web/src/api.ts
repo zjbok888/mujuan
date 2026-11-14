@@ -102,9 +102,10 @@ export function streamGenerate(
 }
 
 export function streamAssistant(
+  path: string,
   body: unknown,
   onEvent: (event: AssistantEvent) => void,
   onError: (message: string) => void,
 ): () => void {
-  return streamPost('/api/assistant/chat', body, onEvent, onError)
+  return streamPost(path, body, onEvent, onError)
 }
