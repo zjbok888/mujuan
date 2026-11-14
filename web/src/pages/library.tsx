@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { api } from '../api.js'
+import { generation } from '../generation.js'
 
 interface PaperSummary {
   id: string
@@ -15,6 +16,7 @@ interface PaperSummary {
 export function LibraryPage({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [items, setItems] = useState<PaperSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const run = useSyncExternalStore(generation.subscribe, generation.getSnapshot)
 
   const load = (): void => {
     api
@@ -24,6 +26,11 @@ export function LibraryPage({ onNavigate }: { onNavigate: (path: string) => void
   }
 
   useEffect(load, [])
+
+  // 人在卷库页时后台生成完成了：自动刷一次，否则新卷要等下次进页面才出现
+  useEffect(() => {
+    if (run.paperId) load()
+  }, [run.paperId])
 
   const remove = async (id: string): Promise<void> => {
     await api.del(`/api/papers/${id}`).catch((err: Error) => setError(err.message))
