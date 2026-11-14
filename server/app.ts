@@ -113,6 +113,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     provider: provider.kind,
     model: demo ? 'fixture-replay' : provider.model,
     version: '0.1.0',
+    // 教师端要能告诉老师"学生该去哪"——端口是配置出来的，不能让老师自己猜
+    ...(role === 'teacher' ? { studentPort: config.studentPort } : {}),
   }))
 
   // 交卷是两端唯一的共用写接口

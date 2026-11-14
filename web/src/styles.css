@@ -635,3 +635,18 @@ table.plain tr:last-child td { border-bottom: none; }
 @media (max-width: 640px) {
   .answer-compare { grid-template-columns: 1fr; }
 }
+
+/* 教师端底部的学生端入口：端口是配置出来的，老师不该靠记忆 */
+.rail-student-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+  background: var(--surface);
+  transition: border-color .15s, color .15s;
+}
+.rail-student-link:hover { border-color: var(--seal); color: var(--seal); }

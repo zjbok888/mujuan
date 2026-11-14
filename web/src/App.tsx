@@ -45,6 +45,8 @@ export interface Health {
   driver: string
   model: string
   version: string
+  /** 仅教师端返回：学生端端口 */
+  studentPort?: number
 }
 
 /** 服务端按端口注入：同一个构建，教师端 / 学生端渲染不同的页面集 */
@@ -157,6 +159,19 @@ export function App() {
             )}
           </div>
           <div>{health ? `存储 ${health.driver} · v${health.version}` : '—'}</div>
+          {ROLE === 'teacher' && health?.studentPort && (
+            <div style={{ marginTop: 8 }}>
+              <a
+                className="rail-student-link"
+                href={`http://${window.location.hostname}:${health.studentPort}/`}
+                target="_blank"
+                rel="noreferrer"
+                title={`学生端在 ${health.studentPort} 端口，学生打开这个地址作答，不需要账号`}
+              >
+                学生端入口 ↗
+              </a>
+            </div>
+          )}
           <div>意图 → 中间表示 → 确定性渲染</div>
         </div>
       </aside>
