@@ -22,6 +22,8 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
     score: 0,
   })
   const [busy, setBusy] = useState(false)
+  // 教师版：显示答案与解析，打印时一并输出
+  const [showKey, setShowKey] = useState(false)
 
   const load = (): void => {
     api
@@ -31,6 +33,12 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
   }
 
   useEffect(load, [id])
+
+  // 草稿默认给老师看答案，已发布默认给学生版；之后以按钮状态为准
+  useEffect(() => {
+    if (!data) return
+    setShowKey(data.status !== 'published')
+  }, [data?.status])
 
   // 助手改完题会广播这个事件：页面必须重新拉一次，否则老师看到的是旧题干
   useEffect(() => {
@@ -144,6 +152,13 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
         </div>
 
         <div className="actions">
+          <button
+            className={`btn btn-sm${showKey ? ' btn-primary' : ''}`}
+            onClick={() => setShowKey((prev) => !prev)}
+            title="打开后试卷会附带答案与解析，打印即为教师版"
+          >
+            {showKey ? '教师版（含答案）' : '学生版'}
+          </button>
           <button className="btn btn-sm" onClick={() => window.print()}>
             打印 / 存 PDF
           </button>
@@ -181,7 +196,7 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
       <div className="qlist">
         {questions.map((question, index) => (
           <div key={question.id}>
-            <QuestionView index={index} question={question} showAnswer={data.status !== 'published'} />
+            <QuestionView index={index} question={question} showAnswer={showKey} />
             <div className="actions" style={{ marginTop: 8, paddingLeft: 4 }}>
               {editing === question.id ? (
                 <div className="card panel editbox" style={{ flex: 1 }}>
@@ -234,6 +249,41 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
           </div>
         ))}
       </div>
+
+      {showKey && (
+        <section className="card panel answer-key">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
+            <h2 style={{ margin: 0 }}>答案速查</h2>
+            <span className="muted" style={{ fontSize: 12 }}>
+              教师版：打印时会一并输出，学生版请先关闭「答案解析」
+            </span>
+          </div>
+          <table className="plain">
+            <thead>
+              <tr>
+                <th style={{ width: 56 }}>题号</th>
+                <th style={{ width: 80 }}>题型</th>
+                <th>答案</th>
+                <th style={{ width: 60 }}>分值</th>
+                <th>知识点</th>
+              </tr>
+            </thead>
+            <tbody>
+              {questions.map((question, index) => (
+                <tr key={question.id}>
+                  <td className="mono">{String(index + 1).padStart(2, '0')}</td>
+                  <td>{QUESTION_TYPE_LABEL[question.type]}</td>
+                  <td style={{ color: 'var(--seal)', fontWeight: 600 }}>
+                    {question.answers.join(' / ')}
+                  </td>
+                  <td>{question.score}</td>
+                  <td className="muted">{question.knowledgePoints.join('、') || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </div>
   )
 }

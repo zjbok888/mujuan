@@ -580,3 +580,38 @@ table.plain tr:last-child td { border-bottom: none; }
 .assistant-input textarea:focus { border-color: var(--seal); box-shadow: 0 0 0 3px rgba(178, 58, 43, .08); }
 
 @media print { .assistant-fab, .assistant-panel { display: none !important; } }
+
+/* ── 考试计时 ────────────────────────────────────────────── */
+
+.countdown {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--ink-soft, rgba(0, 0, 0, .05));
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.countdown.warn { background: #fbf0d9; color: #8a5a12; }
+.countdown.err { background: var(--seal-soft); color: #8d2c20; }
+
+/* ── 答案速查表（教师版） ─────────────────────────────────── */
+
+.answer-key { page-break-before: always; }
+.answer-key table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.answer-key th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 11.5px;
+  letter-spacing: .04em;
+  color: var(--ink-3);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.answer-key td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+
+@media print {
+  .answer-key { border: none; box-shadow: none; padding: 0; }
+  .answer-key th { border-bottom-color: #000; color: #000; }
+  .answer-key td { border-bottom-color: #ddd; }
+}

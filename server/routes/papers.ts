@@ -207,4 +207,33 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
     })
     return { attemptId: attempt.id, score: result.score, maxScore: result.maxScore, preview, result }
   })
+
+  /**
+   * 成绩单 CSV。
+   * 带 BOM：不带的话 Excel 打开中文全是乱码，这是老师最常踩的坑。
+   * 试答（preview）不计入，与学情页口径保持一致。
+   */
+  app.get<{ Params: { id: string } }>('/api/papers/:id/attempts.csv', async (request, reply) => {
+    const record = await repo.getPaper(request.params.id)
+    if (!record) return reply.code(404).send({ error: 'NOT_FOUND', message: '试卷不存在' })
+
+    const attempts = (await repo.listAttempts(record.id)).filter((a) => !a.preview)
+    const escape = (value: string | number): string => `"${String(value).replace(/"/g, '""')}"`
+
+    const rows: Array<Array<string | number>> = [
+      ['姓名', '得分', '满分', '得分率', '提交时间'],
+      ...attempts.map((a) => [
+        a.student,
+        a.score,
+        a.maxScore,
+        a.maxScore > 0 ? `${Math.round((a.score / a.maxScore) * 100)}%` : '—',
+        a.submittedAt,
+      ]),
+    ]
+
+    const csv = `\ufeff${rows.map((row) => row.map(escape).join(',')).join('\r\n')}`
+    reply.header('Content-Type', 'text/csv; charset=utf-8')
+    reply.header('Content-Disposition', `attachment; filename="scores-${record.id}.csv"`)
+    return reply.send(csv)
+  })
 }

@@ -57,6 +57,9 @@ export function StatsPage({ id, onNavigate }: { id: string; onNavigate: (path: s
           <button className="btn btn-sm" onClick={() => onNavigate(`/paper/${id}`)}>
             回到试卷
           </button>
+          <a className="btn btn-sm" href={`/api/papers/${id}/attempts.csv`} download>
+            导出成绩 CSV
+          </a>
           <button className="btn btn-sm" onClick={() => onNavigate(`/take/${id}`)}>
             再试答一份
           </button>

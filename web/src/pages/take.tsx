@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PaperIR } from '@shared/ir.js'
 import { QUESTION_TYPE_LABEL } from '@shared/ir.js'
 import { api } from '../api.js'
@@ -19,6 +19,12 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
   const [preview, setPreview] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [remaining, setRemaining] = useState<number | null>(null)
+  const [timedOut, setTimedOut] = useState(false)
+
+  const deadlineRef = useRef<number | null>(null)
+  const autoRef = useRef(false)
+  const submitRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
     api
@@ -26,6 +32,35 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
       .then(setData)
       .catch((err: Error) => setError(err.message))
   }, [id])
+
+  // 计时：进入卷面即开始，到点自动交卷（只触发一次，避免重复提交）
+  useEffect(() => {
+    if (!data || result) return
+    if (deadlineRef.current === null) {
+      deadlineRef.current = Date.now() + data.paper.durationMin * 60_000
+    }
+    const tick = (): void => {
+      const left = Math.max(0, Math.round(((deadlineRef.current ?? 0) - Date.now()) / 1000))
+      setRemaining(left)
+      if (left <= 0 && !autoRef.current) {
+        autoRef.current = true
+        setTimedOut(true)
+        void submitRef.current()
+      }
+    }
+    tick()
+    const timer = window.setInterval(tick, 1000)
+    return () => window.clearInterval(timer)
+  }, [data, result])
+
+  const restart = (): void => {
+    deadlineRef.current = null
+    autoRef.current = false
+    setTimedOut(false)
+    setRemaining(null)
+    setAnswers({})
+    setResult(null)
+  }
 
   const setAnswer = (qid: string, value: string[]): void => {
     setAnswers((prev) => ({ ...prev, [qid]: value }))
@@ -65,9 +100,12 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
     }
   }
 
+  // 计时器每秒触发一次，闭包里会拿到旧的 submit / answers，
+  // 所以统一走 ref 取最新一版，到点时才能交上真实作答。
+  submitRef.current = submit
+
   if (error && !data) return <div className="card panel">{error}</div>
   if (!data) return <div className="stage-empty">载入中…</div>
-
   const questions = data.paper.sections.flatMap((s) => s.questions)
   const answered = Object.values(answers).filter((v) => v.some((x) => x.trim())).length
 
@@ -97,7 +135,7 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
             <button className="btn btn-sm" onClick={() => onNavigate(`/stats/${id}`)}>
               查看学情
             </button>
-            <button className="btn btn-sm btn-ghost" onClick={() => setResult(null)}>
+            <button className="btn btn-sm btn-ghost" onClick={restart}>
               再答一次
             </button>
           </div>
@@ -137,6 +175,15 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
               满分 {data.paper.totalScore} 分 · {data.paper.durationMin} 分钟
             </span>
             <span>已作答 {answered}/{questions.length}</span>
+            {remaining !== null && (
+              <span
+                className={`countdown${remaining <= 60 ? ' err' : remaining <= 300 ? ' warn' : ''}`}
+                title="考试时间到会自动交卷"
+              >
+                剩余 {String(Math.floor(remaining / 60)).padStart(2, '0')}:
+                {String(remaining % 60).padStart(2, '0')}
+              </span>
+            )}
             {data.status !== 'published' && <span className="tag warn">未发布（试答模式）</span>}
           </div>
         </div>
@@ -155,6 +202,9 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
       </header>
 
       {error && <div className="statusbar err">{error}</div>}
+      {timedOut && !result && (
+        <div className="statusbar warn">时间到，已自动交卷。评分结果见上方。</div>
+      )}
 
       {questions.map((question, index) => {
         const value = answers[question.id] ?? []

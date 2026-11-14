@@ -141,6 +141,19 @@ check('学情统计与作答一致', async () => {
   return `${body.stats.submissions} 份 · 平均 ${body.stats.avgPercent}% · ${body.stats.knowledge.length} 个知识点`
 })
 
+check('成绩单 CSV 带 BOM、表头正确', async () => {
+  const res = await app.inject({ method: 'GET', url: `/api/papers/${paperId}/attempts.csv` })
+  if (res.statusCode !== 200) throw new Error(`导出失败 ${res.statusCode}`)
+  // 没 BOM 的话 Excel 打开中文必乱码，这条不能再退回去
+  if (!res.body.startsWith('\ufeff')) throw new Error('CSV 缺少 BOM')
+  const lines = res.body.replace(/^\ufeff/, '').split('\r\n').filter(Boolean)
+  if (!lines[0]?.includes('姓名')) throw new Error(`表头异常：${lines[0]}`)
+  if (lines.length < 2) throw new Error('没有数据行')
+  const contentType = String(res.headers['content-type'] ?? '')
+  if (!contentType.includes('text/csv')) throw new Error(`Content-Type 异常：${contentType}`)
+  return `${lines.length - 1} 行成绩 · ${contentType}`
+})
+
 check('草稿试答：可交卷但不污染学情', async () => {
   if (!generated) throw new Error('前置步骤未完成')
   // 新建一份草稿（不发布），直接交卷
