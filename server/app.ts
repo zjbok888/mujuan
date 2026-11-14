@@ -54,6 +54,22 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const makeLlmPort = (_signal: AbortSignal): LlmPort =>
     demoFactory ? demoFactory() : createLivePort(config)
 
+  // 容错：声明了 application/json 但 body 为空时按 {} 处理。
+  // 前端只要有一次忘记去掉 header，所有"无 body 的 POST/DELETE"就会整片 400——
+  // 与其让每个调用方各自小心，不如在边界上兜住。
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
+    const text = typeof body === 'string' ? body.trim() : ''
+    if (text.length === 0) {
+      done(null, {})
+      return
+    }
+    try {
+      done(null, JSON.parse(text))
+    } catch (error) {
+      done(error as Error, undefined)
+    }
+  })
+
   registerPaperRoutes(app, { config, repo: deps.repo, makeLlmPort })
   registerStatsRoutes(app, { config, repo: deps.repo, makeLlmPort })
 

@@ -1,9 +1,16 @@
 import type { ServerEvent } from '@shared/events'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // 只在真的有 body 时才声明 application/json。
+  // 否则 Fastify 会因为「声明了 JSON 却没有 body」直接 400（FST_ERR_CTP_EMPTY_JSON_BODY），
+  // 这正是"发布/删除点了没反应"的根因。
+  const hasBody = init?.body !== undefined && init?.body !== null
   const res = await fetch(path, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      ...(init?.headers ?? {}),
+    },
   })
   if (!res.ok) {
     const detail = (await res.json().catch(() => null)) as { message?: string } | null

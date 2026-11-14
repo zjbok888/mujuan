@@ -168,6 +168,33 @@ check('草稿试答：可交卷但不污染学情', async () => {
   return `得 ${body.score} 分，统计仍为 0 份`
 })
 
+check('空 JSON body 的 POST / DELETE 不再 400', async () => {
+  if (!generated) throw new Error('前置步骤未完成')
+  // 前端曾经给所有请求都加 Content-Type: application/json，
+  // 于是"发布/删除"这类无 body 的调用整片 400。这里固化成回归测试。
+  const scratch = await repo.createPaper(generated.ir)
+
+  const res = await app.inject({
+    method: 'POST',
+    url: `/api/papers/${scratch.id}/publish`,
+    headers: { 'content-type': 'application/json' },
+    payload: '',
+  })
+  if (res.statusCode !== 200) {
+    throw new Error(`空 body 的 POST 应被接受，实际 ${res.statusCode}：${res.body.slice(0, 120)}`)
+  }
+
+  const del = await app.inject({
+    method: 'DELETE',
+    url: `/api/papers/${scratch.id}`,
+    headers: { 'content-type': 'application/json' },
+  })
+  if (del.statusCode !== 200) {
+    throw new Error(`空 body 的 DELETE 应被接受，实际 ${del.statusCode}：${del.body.slice(0, 120)}`)
+  }
+  return `POST ${res.statusCode} / DELETE ${del.statusCode}`
+})
+
 check('IR 导出可下载且结构完整', async () => {
   const res = await app.inject({ method: 'GET', url: `/api/papers/${paperId}/paper.json` })
   if (res.statusCode !== 200) throw new Error(`导出失败 ${res.statusCode}`)

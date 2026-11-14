@@ -32,9 +32,25 @@ export function LibraryPage({ onNavigate }: { onNavigate: (path: string) => void
     if (run.paperId) load()
   }, [run.paperId])
 
-  const remove = async (id: string): Promise<void> => {
-    await api.del(`/api/papers/${id}`).catch((err: Error) => setError(err.message))
-    load()
+  const togglePublish = async (paper: PaperSummary): Promise<void> => {
+    const action = paper.status === 'published' ? 'unpublish' : 'publish'
+    try {
+      await api.post(`/api/papers/${paper.id}/${action}`)
+      load()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const remove = async (paper: PaperSummary): Promise<void> => {
+    const confirmed = window.confirm(`删除《${paper.title}》？\n该卷的作答记录会一并删除，且不可恢复。`)
+    if (!confirmed) return
+    try {
+      await api.del(`/api/papers/${paper.id}`)
+      load()
+    } catch (err) {
+      setError((err as Error).message)
+    }
   }
 
   return (
@@ -77,14 +93,23 @@ export function LibraryPage({ onNavigate }: { onNavigate: (path: string) => void
               </span>
               <span className="mono">{new Date(paper.createdAt).toLocaleDateString('zh-CN')}</span>
             </div>
-            <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <div
+              style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className={`btn btn-sm ${paper.status === 'published' ? '' : 'btn-primary'}`}
+                onClick={() => void togglePublish(paper)}
+              >
+                {paper.status === 'published' ? '撤回发布' : '发布'}
+              </button>
               <button className="btn btn-sm btn-ghost" onClick={() => onNavigate(`/take/${paper.id}`)}>
                 试答
               </button>
               <button className="btn btn-sm btn-ghost" onClick={() => onNavigate(`/stats/${paper.id}`)}>
                 学情
               </button>
-              <button className="btn btn-sm btn-ghost" onClick={() => void remove(paper.id)}>
+              <button className="btn btn-sm btn-ghost" onClick={() => void remove(paper)}>
                 删除
               </button>
             </div>
