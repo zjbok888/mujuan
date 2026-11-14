@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { api } from './api.js'
+import { generation, generationProgress } from './generation.js'
 import { ComposePage } from './pages/compose.js'
 import { LibraryPage } from './pages/library.js'
 import { PaperPage } from './pages/paper.js'
@@ -38,6 +39,8 @@ export interface Health {
 export function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash))
   const [health, setHealth] = useState<Health | null>(null)
+  const run = useSyncExternalStore(generation.subscribe, generation.getSnapshot)
+  const { filled, total } = generationProgress(run)
 
   useEffect(() => {
     const onHash = () => {
@@ -75,6 +78,13 @@ export function App() {
         </nav>
 
         <div className="rail-foot">
+          {run.phase === 'running' && (
+            <div style={{ marginBottom: 10 }}>
+              <a href="#/" className="tag seal" title="生成在后台继续">
+                出卷中 {filled}/{total}
+              </a>
+            </div>
+          )}
           <div className="badge">
             {health ? (
               health.mode === 'demo' ? (

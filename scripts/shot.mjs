@@ -10,7 +10,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const [url, out, w = '1280', h = '900', waitMs = '1600', scrollY = '0'] = process.argv.slice(2)
+const [url, out, w = '1280', h = '900', waitMs = '1600', scrollY = '0', evalAfter = ''] = process.argv.slice(2)
 if (!url || !out) {
   console.error('用法：node scripts/shot.mjs <url> <out.png> [width] [height] [waitMs]')
   process.exit(1)
@@ -126,6 +126,12 @@ try {
   // 等 load 事件，再多等一会儿让 React 与字体就位
   for (let i = 0; i < 80 && !events.includes('Page.loadEventFired'); i += 1) await sleep(100)
   await sleep(Number(waitMs))
+
+  if (evalAfter) {
+    await send('Runtime.enable', {}, sessionId)
+    await send('Runtime.evaluate', { expression: evalAfter, awaitPromise: false }, sessionId)
+    await sleep(900)
+  }
 
   if (Number(scrollY) > 0) {
     await send('Runtime.enable', {}, sessionId)
