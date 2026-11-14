@@ -72,10 +72,12 @@ async function health() {
 
 function runStep(label, command, commandArgs) {
   console.log(`\n${color('36', '▸')} ${label}`)
-  const result = spawnSync(command, commandArgs, {
+  // 不用 shell:true（Node 会警告参数未转义）；Windows 上显式走 cmd /c 即可调用 npm.cmd
+  const spawnCommand = isWin ? 'cmd' : command
+  const spawnArgs = isWin ? ['/c', [command, ...commandArgs].join(' ')] : commandArgs
+  const result = spawnSync(spawnCommand, spawnArgs, {
     cwd: root,
     stdio: 'inherit',
-    shell: isWin,
   })
   if (result.status !== 0) {
     fail(`${label} 失败（退出码 ${result.status}）`)
