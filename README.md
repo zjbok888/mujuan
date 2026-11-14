@@ -72,6 +72,18 @@ http://127.0.0.1:4000/?demo=1#/
 
 打开即自动填入示例大纲并跑完一次生成，可以直接看到：模型思考流 → 命题蓝图 → 逐题落地 → 校验结果。
 
+### 1.6 复现记录
+
+最近一次在**干净目录**（无 `node_modules`、无 `.env`、无 API Key）执行：
+
+```bash
+git clone <repo> mujuan && cd mujuan
+npm ci && npm run build && npm run verify
+```
+
+结果：`9/9 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
+`/assets/*.js` 返回 200，SSE 生成完整跑通（plan → 4 items → validate → paper.done → done）。
+
 ---
 
 ## 2. 两种运行模式
