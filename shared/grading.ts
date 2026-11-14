@@ -11,6 +11,8 @@ export interface QuestionResult {
   max: number
   verdict: Verdict
   detail: string
+  /** 学生原始作答，用于错题回顾；历史记录可能没有 */
+  answer?: string[]
 }
 
 export interface GradeResult {

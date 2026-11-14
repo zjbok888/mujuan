@@ -11,6 +11,7 @@ import { registerPaperRoutes } from './routes/papers.js'
 import { registerStatsRoutes } from './routes/stats.js'
 import { registerSettingsRoutes } from './routes/settings.js'
 import { registerAssistantRoutes } from './routes/assistant.js'
+import { registerStudentRoutes } from './routes/student.js'
 
 export interface AppDeps {
   config: AppConfig
@@ -99,6 +100,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerStatsRoutes(app, { config, repo: deps.repo, makeLlmPort })
   registerSettingsRoutes(app)
   registerAssistantRoutes(app, { config, repo: deps.repo, makeLlmPort })
+  registerStudentRoutes(app, { repo: deps.repo })
 
   if (existsSync(config.webDist)) {
     // 不要关掉 wildcard：关掉之后只有 "/" 能被服务，/assets/* 全部 404，页面白屏

@@ -615,3 +615,23 @@ table.plain tr:last-child td { border-bottom: none; }
   .answer-key th { border-bottom-color: #000; color: #000; }
   .answer-key td { border-bottom-color: #ddd; }
 }
+
+/* ── 错题回顾 ────────────────────────────────────────────── */
+
+.qoptions li.opt-right { border-color: #bcd9c6; background: var(--ok-soft); }
+.qoptions li.opt-wrong { border-color: #e8cdc7; background: var(--seal-soft); }
+.opt-flag { margin-left: auto; font-size: 11px; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.opt-flag.ok { background: var(--ok); color: #fff; }
+.opt-flag.err { background: var(--seal); color: #fff8f2; }
+
+.answer-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.answer-compare .val { font-size: 14px; font-weight: 600; margin-top: 3px; }
+.answer-compare .val.err { color: #8d2c20; }
+.answer-compare .val.ok { color: var(--ok); }
+
+.explain { margin-top: 12px; padding: 10px 12px; border-left: 2px solid var(--line-strong); font-size: 13px; color: var(--ink-2); line-height: 1.8; }
+.explain .label { display: block; margin-bottom: 4px; }
+
+@media (max-width: 640px) {
+  .answer-compare { grid-template-columns: 1fr; }
+}

@@ -154,6 +154,39 @@ check('成绩单 CSV 带 BOM、表头正确', async () => {
   return `${lines.length - 1} 行成绩 · ${contentType}`
 })
 
+check('学生端：只见已发布卷，错题带原始作答', async () => {
+  if (!generated) throw new Error('前置步骤未完成')
+
+  const draft = await repo.createPaper(generated.ir)
+  const list = await app.inject({ method: 'GET', url: '/api/student/papers' })
+  if (list.statusCode !== 200) throw new Error(`学生端列表失败 ${list.statusCode}`)
+  const items = (list.json() as { items: Array<{ id: string }> }).items
+  if (items.some((item) => item.id === draft.id)) throw new Error('草稿出现在了学生端列表')
+
+  // 故意答错一题，验证错题回顾拿得到原始作答
+  const questions = generated.ir.sections.flatMap((s) => s.questions)
+  const answers: Record<string, string[]> = {}
+  for (const q of questions) {
+    answers[q.id] = q.type === 'single' ? ['ZZZ'] : q.answers
+  }
+  const created = await app.inject({
+    method: 'POST',
+    url: '/api/attempts',
+    payload: { paperId, student: '自检同学', answers },
+  })
+  if (created.statusCode !== 200) throw new Error(`交卷失败 ${created.statusCode}`)
+  const attemptId = (created.json() as { attemptId: string }).attemptId
+
+  const detail = await app.inject({ method: 'GET', url: `/api/attempts/${attemptId}` })
+  if (detail.statusCode !== 200) throw new Error(`错题回顾失败 ${detail.statusCode}`)
+  const body = detail.json() as { review: Array<{ myAnswer?: string[] }> }
+  if (body.review.length === 0) throw new Error('错题列表为空')
+  if (body.review[0]?.myAnswer === undefined) throw new Error('错题没有记录原始作答')
+
+  await repo.deletePaper(draft.id)
+  return `${items.length} 份可见 · ${body.review.length} 道错题可回顾`
+})
+
 check('草稿试答：可交卷但不污染学情', async () => {
   if (!generated) throw new Error('前置步骤未完成')
   // 新建一份草稿（不发布），直接交卷

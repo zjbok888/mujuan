@@ -179,6 +179,23 @@ export async function createSqliteRepo(dataDir: string): Promise<PaperRepo> {
         result: JSON.parse(row.result_json) as GradeResult,
       }))
     },
+
+    async getAttempt(id) {
+      const row = db.prepare('SELECT * FROM attempts WHERE id = ?').get(id) as unknown as
+        | AttemptRow
+        | undefined
+      if (!row) return null
+      return {
+        id: row.id,
+        paperId: row.paper_id,
+        student: row.student,
+        submittedAt: row.submitted_at,
+        score: row.score,
+        maxScore: row.max_score,
+        preview: Number(row.preview ?? 0) === 1,
+        result: JSON.parse(row.result_json) as GradeResult,
+      }
+    },
   }
 
   return repo

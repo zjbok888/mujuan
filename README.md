@@ -62,6 +62,7 @@ npm run verify
   ✓ 人工改题可持久化
   ✓ 提交作答 → 确定性评分
   ✓ 学情统计与作答一致
+  ✓ 学生端：只见已发布卷，错题带原始作答
   ✓ 草稿试答：可交卷但不污染学情
   ✓ 空 JSON body 的 POST / DELETE 不再 400
   ✓ 接入配置不回传密钥
@@ -70,7 +71,7 @@ npm run verify
   ✓ 成绩单 CSV 带 BOM、表头正确
   ✓ 无 Key 回放具备确定性
 
-14/14 passed
+15/15 passed
 ```
 
 自检**不读取 API Key、不访问网络**，跑在临时目录里，不会污染你的数据。
@@ -101,7 +102,7 @@ git clone <repo> mujuan && cd mujuan
 npm ci && npm run build && npm run verify
 ```
 
-结果：`14/14 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
+结果：`15/15 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
 `/assets/*.js` 返回 200，SSE 生成完整跑通（plan → 4 items → validate → paper.done → done）。
 
 ---
@@ -229,6 +230,26 @@ cp .env.example .env
 计时存的是 `deadline` 时间戳而不是逐秒递减，所以切走标签页再回来，剩余时间依然准确。
 
 ![考试倒计时](docs/screenshots/take-countdown.png)
+
+### 学生端：从"能答题"到"知道自己错在哪"
+
+老师的界面是出卷，学生不该看到同一套。侧边栏的**学生端**是另一个视角：
+
+![学生端](docs/screenshots/student.png)
+
+- **只看得见已发布的卷子**，草稿一律不出现（服务端过滤，不是前端藏起来）；
+- 输入名字即可，**没有注册流程**——一间教室几十个人，注册成本比收益高；
+- 每份卷子显示"我的最高分"，做过几次一目了然；
+- **错题回顾**：逐题对照"你选的 / 正确答案"，对错选项直接染色，附解析与知识点。
+
+![错题回顾](docs/screenshots/review.png)
+
+最关键的一步是点「让 AI 讲讲这题」：助手会带着**这份卷子**的上下文打开，直接讲这道题的考点、你错在哪、下次怎么做。
+
+![让 AI 讲讲这题](docs/screenshots/ask-ai.png)
+
+它不是泛泛而谈——上面这次它准确指出学生"把切点纵坐标 −1 当成了斜率"，
+因为错题记录里存了原始作答，模型看得到"你选了 D、正确答案是 B"。
 
 ### 目录结构
 

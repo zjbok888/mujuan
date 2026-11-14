@@ -121,8 +121,24 @@ export function Assistant({ context }: { context: AssistantContext }) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** 由外部页面（错题回顾）指定的试卷，面板标题要据此显示 */
+  const [overridePaperId, setOverridePaperId] = useState<string | null>(null)
   const abortRef = useRef<(() => void) | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const sendRef = useRef<(text: string, paperId?: string) => void>(() => {})
+
+  useEffect(() => {
+    const onAsk = (event: Event): void => {
+      const detail = (event as CustomEvent<{ text?: string; paperId?: string }>).detail
+      if (!detail?.text) return
+      setOpen(true)
+      if (detail.paperId) setOverridePaperId(detail.paperId)
+      // 等面板挂载后再发，否则消息列表还没渲染
+      window.setTimeout(() => sendRef.current(detail.text ?? '', detail.paperId), 60)
+    }
+    window.addEventListener('mujuan:assistant-ask', onAsk)
+    return () => window.removeEventListener('mujuan:assistant-ask', onAsk)
+  }, [])
 
   const panel = useDraggable('mujuan:assistant:panel', PANEL_W, Math.min(PANEL_H, window.innerHeight - 48))
   const fab = useDraggable('mujuan:assistant:fab', 58, 58)
@@ -154,13 +170,19 @@ export function Assistant({ context }: { context: AssistantContext }) {
     })
   }
 
-  const send = (): void => {
-    const text = input.trim()
+  /**
+   * 发送一条消息。
+   * paperIdOverride 用于"从错题回顾里点『让 AI 讲讲这题』"——那时页面路由是 review，
+   * 助手自己拿不到试卷 id，只能由调用方带过来。
+   */
+  const sendText = (raw: string, paperIdOverride?: string): void => {
+    const text = raw.trim()
     if (!text || busy) return
 
     const history = messages
       .filter((m) => m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content }))
+    const requestContext = paperIdOverride ? { ...context, paperId: paperIdOverride } : context
 
     setMessages((prev) => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '' }])
     setInput('')
@@ -206,7 +228,7 @@ export function Assistant({ context }: { context: AssistantContext }) {
     abortRef.current = streamAssistant(
       {
         messages: [...history, { role: 'user', content: text }],
-        context,
+        context: requestContext,
       },
       handle,
       (message) => {
@@ -215,6 +237,9 @@ export function Assistant({ context }: { context: AssistantContext }) {
       },
     )
   }
+
+  // 其他页面（如错题回顾）可以广播这个事件，让助手直接开口回答某个问题
+  sendRef.current = sendText
 
   if (!open) {
     return (
@@ -256,7 +281,7 @@ export function Assistant({ context }: { context: AssistantContext }) {
         <div>
           <strong>命题助手</strong>
           <span className="assistant-context">
-            {context.paperId ? '已读到当前试卷' : '未打开试卷'}
+            {overridePaperId || context.paperId ? '已读到当前试卷' : '未打开试卷'}
           </span>
         </div>
         <div className="assistant-head-actions" onPointerDown={(e) => e.stopPropagation()}>
@@ -295,12 +320,12 @@ export function Assistant({ context }: { context: AssistantContext }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              send()
+              sendText(input)
             }
           }}
           rows={2}
         />
-        <button className="btn btn-sm btn-seal" onClick={send} disabled={busy || !input.trim()}>
+        <button className="btn btn-sm btn-seal" onClick={() => sendText(input)} disabled={busy || !input.trim()}>
           {busy ? '…' : '发送'}
         </button>
       </div>

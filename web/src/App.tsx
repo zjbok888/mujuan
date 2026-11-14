@@ -6,26 +6,32 @@ import { generation, generationProgress } from './generation.js'
 import { ComposePage } from './pages/compose.js'
 import { LibraryPage } from './pages/library.js'
 import { PaperPage } from './pages/paper.js'
+import { ReviewPage } from './pages/review.js'
 import { SettingsPage } from './pages/settings.js'
 import { StatsPage } from './pages/stats.js'
+import { StudentPage } from './pages/student.js'
 import { TakePage } from './pages/take.js'
 
 export type Route =
   | { name: 'compose' }
   | { name: 'library' }
+  | { name: 'student' }
   | { name: 'settings' }
   | { name: 'paper'; id: string }
   | { name: 'take'; id: string }
   | { name: 'stats'; id: string }
+  | { name: 'review'; id: string }
 
 function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean)
   const [head, id] = parts
   if (head === 'library') return { name: 'library' }
+  if (head === 'student') return { name: 'student' }
   if (head === 'settings') return { name: 'settings' }
   if (head === 'paper' && id) return { name: 'paper', id }
   if (head === 'take' && id) return { name: 'take', id }
   if (head === 'stats' && id) return { name: 'stats', id }
+  if (head === 'review' && id) return { name: 'review', id }
   return { name: 'compose' }
 }
 
@@ -76,7 +82,9 @@ export function App() {
   const assistantContext: AssistantContext =
     route.name === 'paper' || route.name === 'take' || route.name === 'stats'
       ? { page: route.name, paperId: route.id }
-      : { page: route.name }
+      : route.name === 'student' || route.name === 'review'
+        ? { page: route.name }
+        : { page: route.name }
 
   return (
     <div className="shell">
@@ -95,6 +103,9 @@ export function App() {
           </a>
           <a href="#/library" className={route.name === 'library' ? 'active' : ''}>
             <i className="dot" />卷库
+          </a>
+          <a href="#/student" className={route.name === 'student' ? 'active' : ''}>
+            <i className="dot" />学生端
           </a>
           <a href="#/settings" className={route.name === 'settings' ? 'active' : ''}>
             <i className="dot" />接入
@@ -128,6 +139,8 @@ export function App() {
       <main className="main">
         {route.name === 'compose' && <ComposePage onNavigate={go} />}
         {route.name === 'library' && <LibraryPage onNavigate={go} />}
+        {route.name === 'student' && <StudentPage onNavigate={go} />}
+        {route.name === 'review' && <ReviewPage id={route.id} onNavigate={go} />}
         {route.name === 'settings' && <SettingsPage />}
         {route.name === 'paper' && <PaperPage id={route.id} onNavigate={go} />}
         {route.name === 'take' && <TakePage id={route.id} onNavigate={go} />}

@@ -114,6 +114,10 @@ export async function createJsonRepo(dataDir: string): Promise<PaperRepo> {
     async listAttempts(paperId) {
       return db.attempts.filter((a) => a.paperId === paperId)
     },
+
+    async getAttempt(id) {
+      return db.attempts.find((a) => a.id === id) ?? null
+    },
   }
 
   return repo

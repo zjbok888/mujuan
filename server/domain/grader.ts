@@ -94,7 +94,11 @@ export function gradeQuestion(q: Question, got: string[]): QuestionResult {
  */
 export function gradePaper(paper: PaperIR, answers: AnswerMap): GradeResult {
   const questions = paper.sections.flatMap((s) => s.questions)
-  const results = questions.map((q) => gradeQuestion(q, answers[q.id] ?? []))
+  // 把原始作答一并存进结果：错题回顾要展示"你选了什么"
+  const results = questions.map((q) => ({
+    ...gradeQuestion(q, answers[q.id] ?? []),
+    answer: answers[q.id] ?? [],
+  }))
   const score = Math.round(results.reduce((sum, r) => sum + r.awarded, 0) * 100) / 100
   const maxScore = Math.round(results.reduce((sum, r) => sum + r.max, 0) * 100) / 100
   return {

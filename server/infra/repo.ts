@@ -20,6 +20,7 @@ export interface PaperSummary {
   grade: string
   status: PaperStatus
   totalScore: number
+  durationMin: number
   questionCount: number
   createdAt: string
 }
@@ -42,7 +43,7 @@ export interface AttemptRecord {
   submittedAt: string
   score: number
   maxScore: number
-  /** 未发布试卷的试答：入库但计入学情统计 */
+  /** 未发布试卷的试答：入库但**不**计入学情统计 */
   preview?: boolean
   result: GradeResult
 }
@@ -64,6 +65,7 @@ export interface PaperRepo {
   deletePaper(paperId: string): Promise<boolean>
   createAttempt(input: Omit<AttemptRecord, 'id' | 'submittedAt'>): Promise<AttemptRecord>
   listAttempts(paperId: string): Promise<AttemptRecord[]>
+  getAttempt(id: string): Promise<AttemptRecord | null>
 }
 
 export function newId(prefix: string): string {
@@ -79,6 +81,7 @@ export function summarise(record: PaperRecord): PaperSummary {
     grade: record.ir.grade,
     status: record.status,
     totalScore: record.ir.totalScore,
+    durationMin: record.ir.durationMin,
     questionCount: questions.length,
     createdAt: record.createdAt,
   }
