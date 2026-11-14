@@ -142,3 +142,5 @@ for (let i = 0; i < STUDENTS.length; i += 1) {
 }
 
 console.log(`\n[seed] 完成。打开 ${BASE}/#/stats/${paperId} 查看学情大盘。`)
+
+export {}
