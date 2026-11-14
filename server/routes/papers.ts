@@ -7,6 +7,7 @@ import { LlmError, streamChat } from '../infra/llm.js'
 import { createRateLimiter } from '../infra/rate-limit.js'
 import type { PaperRepo } from '../infra/repo.js'
 import { clampMixToDemo, loadDemoPaper } from '../infra/demo.js'
+import { getProvider, isDemo } from '../settings.js'
 import { generatePaper, type LlmPort } from '../domain/generator.js'
 
 export interface RouteDeps {
@@ -37,13 +38,18 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
   const { config, repo } = deps
   const allowGenerate = createRateLimiter(6, 60_000)
 
-  app.get('/api/health', async () => ({
-    ok: true,
-    mode: config.demoMode ? 'demo' : 'live',
-    driver: repo.driver,
-    model: config.demoMode ? 'fixture-replay' : config.llm.model,
-    version: '0.1.0',
-  }))
+  app.get('/api/health', async () => {
+    const provider = getProvider()
+    const demo = isDemo()
+    return {
+      ok: true,
+      mode: demo ? 'demo' : 'live',
+      driver: repo.driver,
+      provider: provider.kind,
+      model: demo ? 'fixture-replay' : provider.model,
+      version: '0.1.0',
+    }
+  })
 
   // ── 生成：SSE 长连接 ────────────────────────────────────────────────
   app.post('/api/papers/generate', async (request, reply) => {
@@ -76,7 +82,7 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
 
     try {
       let request = parsed.data
-      if (config.demoMode) {
+      if (isDemo()) {
         // 演示模式下把题型配比收窄到内置样例能覆盖的范围，避免评委改个参数就得到一份自相矛盾的卷子
         const demo = loadDemoPaper()
         const clamped = clampMixToDemo(request.mix, demo)
@@ -90,7 +96,7 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
         req: request,
         llm: deps.makeLlmPort(controller.signal),
         emit,
-        modelName: config.demoMode ? 'fixture-replay' : config.llm.model,
+        modelName: isDemo() ? 'fixture-replay' : getProvider().model,
         signal: controller.signal,
       })
       const record = await repo.createPaper(ir)

@@ -23,6 +23,7 @@ const { generatePaper } = await import('../server/domain/generator.js')
 const { createDemoPort, loadDemoPaper } = await import('../server/infra/demo.js')
 const { validatePaper } = await import('../server/domain/validator.js')
 const { paperSchema } = await import('../shared/ir.js')
+const { isDemo } = await import('../server/settings.js')
 const katex = (await import('katex')).default
 
 const checks: Array<{ name: string; run: () => Promise<string> }> = []
@@ -44,11 +45,11 @@ let studentScore = 0
 
 check('环境与仓储初始化', async () => {
   if (repo.driver !== 'json') throw new Error(`期望 json 驱动，实际 ${repo.driver}`)
-  return `驱动 ${repo.driver}，演示模式=${config.demoMode}`
+  return `驱动 ${repo.driver}，演示模式=${isDemo()}`
 })
 
 check('回放生成一份试卷且 IR 通过 zod', async () => {
-  if (!config.demoMode) throw new Error('自检必须运行在演示模式（不应读取真实 Key）')
+  if (!isDemo()) throw new Error('自检必须运行在演示模式（不应读取真实接入配置）')
   const demo = loadDemoPaper()
   generated = await generatePaper({
     req: {
@@ -193,6 +194,23 @@ check('空 JSON body 的 POST / DELETE 不再 400', async () => {
     throw new Error(`空 body 的 DELETE 应被接受，实际 ${del.statusCode}：${del.body.slice(0, 120)}`)
   }
   return `POST ${res.statusCode} / DELETE ${del.statusCode}`
+})
+
+check('接入配置不回传密钥', async () => {
+  const res = await app.inject({ method: 'GET', url: '/api/settings' })
+  if (res.statusCode !== 200) throw new Error(`读取配置失败 ${res.statusCode}`)
+  if (res.body.includes('"apiKey"')) throw new Error('响应体中出现了 apiKey 字段')
+
+  const parsed = JSON.parse(res.body) as {
+    settings: { hasKey: boolean; kind: string; demo: boolean }
+    presets: Record<string, unknown>
+  }
+  if (typeof parsed.settings.hasKey !== 'boolean') throw new Error('缺少 hasKey 标识')
+  if (!parsed.settings.demo) throw new Error('无 Key 时应处于演示模式')
+
+  const presetCount = Object.keys(parsed.presets).length
+  if (presetCount < 4) throw new Error(`预设数量异常：${presetCount}`)
+  return `${presetCount} 种接入预设 · 密钥已脱敏 · 当前演示模式`
 })
 
 check('IR 导出可下载且结构完整', async () => {

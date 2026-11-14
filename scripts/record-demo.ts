@@ -11,6 +11,7 @@ import { resolve } from 'node:path'
 import { loadConfig } from '../server/config.js'
 import { generatePaper, type LlmPort } from '../server/domain/generator.js'
 import { streamChat } from '../server/infra/llm.js'
+import { getProvider, getTimeoutMs } from '../server/settings.js'
 import type { GenerateRequest } from '../shared/ir.js'
 
 const OUTLINE = `人教版高中数学选择性必修二 · 第五章《导数及其应用》
@@ -36,18 +37,28 @@ const request: GenerateRequest = {
 }
 
 const config = loadConfig()
-if (!config.llm.apiKey) {
-  console.error('[record] 未配置 DEEPSEEK_API_KEY，无法录制真实数据')
+const provider = getProvider()
+if (!provider.baseUrl) {
+  console.error('[record] 未配置可用的 AI 接入，无法录制真实数据（先在 /#/settings 里配置）')
   process.exit(1)
 }
 
 const llm: LlmPort = (messages, options) =>
-  streamChat(config.llm, {
-    messages,
-    json: options.json,
-    signal: options.signal,
-    onReasoning: options.onReasoning,
-  })
+  streamChat(
+    {
+      apiKey: provider.apiKey,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      timeoutMs: getTimeoutMs(),
+    },
+    {
+      messages,
+      json: options.json,
+      signal: options.signal,
+      onReasoning: options.onReasoning,
+      maxTokens: options.maxTokens,
+    },
+  )
 
 const started = Date.now()
 const seen: string[] = []
@@ -62,14 +73,14 @@ const { ir, issues, repairs } = await generatePaper({
     }
     if (event.type === 'repair.attempt') console.log(`[repair] 第 ${event.round} 轮：${event.reason}`)
   },
-  modelName: config.llm.model,
+  modelName: provider.model,
 })
 
 const dir = resolve(process.cwd(), 'fixtures')
 mkdirSync(dir, { recursive: true })
 const payload = {
   paper: ir,
-  generatedWith: config.llm.model,
+  generatedWith: provider.model,
   recordedAt: new Date().toISOString(),
   tookMs: Date.now() - started,
   repairs,

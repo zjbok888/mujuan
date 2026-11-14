@@ -6,26 +6,42 @@ import type { PaperRepo } from './infra/repo.js'
 import { createDemoPort, loadDemoPaper } from './infra/demo.js'
 import { streamChat } from './infra/llm.js'
 import type { LlmPort } from './domain/generator.js'
+import { getProvider, getTimeoutMs, isDemo } from './settings.js'
 import { registerPaperRoutes } from './routes/papers.js'
 import { registerStatsRoutes } from './routes/stats.js'
+import { registerSettingsRoutes } from './routes/settings.js'
 
 export interface AppDeps {
   config: AppConfig
   repo: PaperRepo
 }
 
-function createLivePort(config: AppConfig): LlmPort {
-  return (messages, options) =>
-    streamChat(config.llm, {
-      messages,
-      json: options.json,
-      signal: options.signal,
-      onReasoning: options.onReasoning,
-      maxTokens: options.maxTokens,
-    })
+/**
+ * 走真实模型时每次调用都重新读一次配置：
+ * 用户在界面上切换接入方式后，不需要重启服务。
+ */
+function createLivePort(): LlmPort {
+  return (messages, options) => {
+    const provider = getProvider()
+    return streamChat(
+      {
+        apiKey: provider.apiKey,
+        baseUrl: provider.baseUrl,
+        model: provider.model,
+        timeoutMs: getTimeoutMs(),
+      },
+      {
+        messages,
+        json: options.json,
+        signal: options.signal,
+        onReasoning: options.onReasoning,
+        maxTokens: options.maxTokens,
+      },
+    )
+  }
 }
 
-function createDemoFactory(config: AppConfig): () => LlmPort {
+function createDemoFactory(): () => LlmPort {
   let cached: LlmPort | null = null
   // 演示节奏可调：录屏/截图时放慢，答辩现场保持默认
   const stepMs = Number(process.env.DEMO_STEP_MS ?? 16)
@@ -50,10 +66,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     bodyLimit: 64 * 1024,
   })
 
-  const demoFactory = config.demoMode ? createDemoFactory(config) : null
-  const makeLlmPort = (_signal: AbortSignal): LlmPort =>
-    demoFactory ? demoFactory() : createLivePort(config)
-
   // 容错：声明了 application/json 但 body 为空时按 {} 处理。
   // 前端只要有一次忘记去掉 header，所有"无 body 的 POST/DELETE"就会整片 400——
   // 与其让每个调用方各自小心，不如在边界上兜住。
@@ -70,8 +82,20 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     }
   })
 
+  // 演示端口按需创建：界面里随时可以切回/切走演示模式
+  const demoFactory = createDemoFactory()
+  let demoPort: LlmPort | null = null
+  const makeLlmPort = (_signal: AbortSignal): LlmPort => {
+    if (isDemo()) {
+      if (!demoPort) demoPort = demoFactory()
+      return demoPort
+    }
+    return createLivePort()
+  }
+
   registerPaperRoutes(app, { config, repo: deps.repo, makeLlmPort })
   registerStatsRoutes(app, { config, repo: deps.repo, makeLlmPort })
+  registerSettingsRoutes(app)
 
   if (existsSync(config.webDist)) {
     // 不要关掉 wildcard：关掉之后只有 "/" 能被服务，/assets/* 全部 404，页面白屏

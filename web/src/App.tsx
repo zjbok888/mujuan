@@ -4,12 +4,14 @@ import { generation, generationProgress } from './generation.js'
 import { ComposePage } from './pages/compose.js'
 import { LibraryPage } from './pages/library.js'
 import { PaperPage } from './pages/paper.js'
+import { SettingsPage } from './pages/settings.js'
 import { StatsPage } from './pages/stats.js'
 import { TakePage } from './pages/take.js'
 
 export type Route =
   | { name: 'compose' }
   | { name: 'library' }
+  | { name: 'settings' }
   | { name: 'paper'; id: string }
   | { name: 'take'; id: string }
   | { name: 'stats'; id: string }
@@ -18,6 +20,7 @@ function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean)
   const [head, id] = parts
   if (head === 'library') return { name: 'library' }
+  if (head === 'settings') return { name: 'settings' }
   if (head === 'paper' && id) return { name: 'paper', id }
   if (head === 'take' && id) return { name: 'take', id }
   if (head === 'stats' && id) return { name: 'stats', id }
@@ -52,7 +55,17 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    api.get<Health>('/api/health').then(setHealth).catch(() => setHealth(null))
+    const loadHealth = (): void => {
+      api
+        .get<Health>('/api/health')
+        .then(setHealth)
+        .catch(() => setHealth(null))
+    }
+    loadHealth()
+    // 接入配置改了之后，顶部的模式角标要立刻跟着变
+    const onChange = (): void => loadHealth()
+    window.addEventListener('mujuan:settings-changed', onChange)
+    return () => window.removeEventListener('mujuan:settings-changed', onChange)
   }, [])
 
   const go = useCallback((path: string) => navigate(path), [])
@@ -74,6 +87,9 @@ export function App() {
           </a>
           <a href="#/library" className={route.name === 'library' ? 'active' : ''}>
             <i className="dot" />卷库
+          </a>
+          <a href="#/settings" className={route.name === 'settings' ? 'active' : ''}>
+            <i className="dot" />接入
           </a>
         </nav>
 
@@ -104,6 +120,7 @@ export function App() {
       <main className="main">
         {route.name === 'compose' && <ComposePage onNavigate={go} />}
         {route.name === 'library' && <LibraryPage onNavigate={go} />}
+        {route.name === 'settings' && <SettingsPage />}
         {route.name === 'paper' && <PaperPage id={route.id} onNavigate={go} />}
         {route.name === 'take' && <TakePage id={route.id} onNavigate={go} />}
         {route.name === 'stats' && <StatsPage id={route.id} onNavigate={go} />}

@@ -47,10 +47,13 @@ npm run verify
   ✓ 人工改题可持久化
   ✓ 提交作答 → 确定性评分
   ✓ 学情统计与作答一致
+  ✓ 草稿试答：可交卷但不污染学情
+  ✓ 空 JSON body 的 POST / DELETE 不再 400
+  ✓ 接入配置不回传密钥
   ✓ IR 导出可下载且结构完整
   ✓ 无 Key 回放具备确定性
 
-9/9 passed
+12/12 passed
 ```
 
 自检**不读取 API Key、不访问网络**，跑在临时目录里，不会污染你的数据。
@@ -81,32 +84,57 @@ git clone <repo> mujuan && cd mujuan
 npm ci && npm run build && npm run verify
 ```
 
-结果：`9/9 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
+结果：`12/12 passed`；`npm start` 后 `/api/health` 返回 `{ok:true, mode:"demo"}`，
 `/assets/*.js` 返回 200，SSE 生成完整跑通（plan → 4 items → validate → paper.done → done）。
 
 ---
 
-## 2. 两种运行模式
+## 2. AI 接入：云端、本地都能接
 
-| 模式 | 触发条件 | 行为 |
+打开 **http://127.0.0.1:4000/#/settings** 即可配置，保存后**立即生效，不用重启**。
+
+| 接入方式 | 适用 | 地址示例 |
 |---|---|---|
-| **在线模式** | `.env` 里配置了 `DEEPSEEK_API_KEY` | 真实调用模型，流式生成 |
-| **演示模式** | 没有 Key（或 Key 为空） | 回放 `fixtures/demo-paper.json`（一次**真实生成**的录制结果），零网络、零费用 |
+| **DeepSeek 云端** | 有 API Key，追求质量 | `https://api.deepseek.com` |
+| **Ollama 本地** | 完全离线、零成本 | `http://127.0.0.1:11434/v1` |
+| **LM Studio 本地** | 图形界面管理模型 | `http://127.0.0.1:1234/v1` |
+| **自定义（OpenAI 兼容）** | vLLM / llama.cpp server / 内网网关 | 自填 |
 
-演示模式不是"假数据糊弄"：题库来自真实跑通的模型输出，回放时保留了阶段切换、字段校验与打分链路，只是把延迟压到了 2 秒。
+界面上可以「测试连接」（真发一句话，报告延迟）和「拉取模型」（读 `/v1/models`）。
+本地服务常见问题会给出人话提示，例如：
+`连不上 http://127.0.0.1:11434/v1：请确认服务已启动、端口正确、地址带 /v1`。
 
-### 配置环境变量
+**三种运行状态**：
+
+| 状态 | 触发条件 | 行为 |
+|---|---|---|
+| 在线 | 接入完整（云端必须有 Key） | 真实调用模型，流式生成 |
+| 演示 | 未配置 / 关闭接入 / 云端缺 Key | 回放 `fixtures/demo-paper.json`（一次真实生成的录制结果），零网络零费用 |
+
+演示模式不是"假数据糊弄"：题库来自真实跑通的模型输出，回放保留了阶段切换、字段校验与打分链路，只是把延迟压到 2 秒。
+
+### 配置存在哪
+
+| 位置 | 优先级 | 说明 |
+|---|---|---|
+| `data/settings.json` | 高 | 界面保存的配置，已被 `.gitignore` 忽略 |
+| `.env` | 中 | 部署时的默认值 |
+| 内置预设 | 低 | 各接入方式的默认地址与模型 |
+
+**密钥只保存在服务端**：`GET /api/settings` 只回传 `hasKey: true/false`，响应体里没有 `apiKey` 字段（自检第 10 项专门验证这一点）。
+
+### 环境变量（可选，作为默认值）
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY=sk-...
 ```
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `DEEPSEEK_API_KEY` | 空 | 留空即进入演示模式 |
-| `LLM_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容接口 |
-| `LLM_MODEL` | `deepseek-flash` | 可换 `deepseek-v4-pro` |
+| `DEEPSEEK_API_KEY` | 空 | 云端必填；留空且未配置本地接入时进入演示模式 |
+| `LLM_PROVIDER` | `deepseek` | `deepseek` / `ollama` / `lmstudio` / `custom` |
+| `LLM_BASE_URL` | 随接入方式 | OpenAI 兼容接口地址 |
+| `LLM_MODEL` | 随接入方式 | 模型名 |
 | `PORT` | `4000` | 服务端口 |
 | `DB_DRIVER` | `auto` | `auto` / `sqlite` / `json` |
 | `DATA_DIR` | `data` | 数据目录 |

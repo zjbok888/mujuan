@@ -51,22 +51,32 @@ export async function streamChat(cfg: LlmConfig, opts: StreamOptions): Promise<s
   opts.signal?.addEventListener('abort', onOuterAbort, { once: true })
 
   try {
-    const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${cfg.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: cfg.model,
-        messages: opts.messages,
-        stream: true,
-        max_tokens: opts.maxTokens ?? 4096,
-        temperature: opts.temperature ?? 0.6,
-        ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
-      }),
-      signal: controller.signal,
-    })
+    const send = (jsonMode: boolean) =>
+      fetch(`${cfg.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model: cfg.model,
+          messages: opts.messages,
+          stream: true,
+          max_tokens: opts.maxTokens ?? 4096,
+          temperature: opts.temperature ?? 0.6,
+          ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+        }),
+        signal: controller.signal,
+      })
+
+    let res = await send(Boolean(opts.json))
+
+    // 本地推理服务（部分 Ollama / llama.cpp / vLLM 版本）不支持 response_format，
+    // 直接 400。这里降级重试一次：提示词里本来就要求"只输出 JSON"，去掉参数照样能用。
+    if (!res.ok && opts.json && (res.status === 400 || res.status === 422)) {
+      await res.text().catch(() => '')
+      res = await send(false)
+    }
 
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => '')
