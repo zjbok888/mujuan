@@ -1,0 +1,40 @@
+{
+  "name": "mujuan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "墨卷 MoJuan — 意图编译型自适应测评引擎",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "vite build",
+    "start": "node scripts/start.mjs",
+    "verify": "tsx scripts/verify.ts",
+    "seed": "tsx scripts/seed-demo.ts",
+    "shot": "node scripts/shot.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fastify/static": "^10.1.11",
+    "dompurify": "^3.4.17",
+    "fastify": "^5.12.8",
+    "katex": "^0.19.1",
+    "marked": "^18.2.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}
