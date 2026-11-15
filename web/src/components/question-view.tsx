@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Question } from '@shared/ir.js'
 import { DIFFICULTY_LABEL, QUESTION_TYPE_LABEL } from '@shared/ir.js'
 import { RichText } from './rich-text.js'
@@ -14,11 +15,14 @@ export function QuestionView({
   question,
   showAnswer = false,
   compact = false,
+  actions,
 }: {
   index: number
   question: Question
   showAnswer?: boolean
   compact?: boolean
+  /** 题卡右上角的操作区（编辑等），不传则不显示 */
+  actions?: ReactNode
 }) {
   const status = STATUS_TAG[question.status]
 
@@ -32,6 +36,7 @@ export function QuestionView({
           {DIFFICULTY_LABEL[question.difficulty as 1 | 2 | 3 | 4 | 5] ?? '未标注'}
         </span>
         {status && <span className={`tag ${status.cls}`}>{status.text}</span>}
+        {actions && <div className="qcard-actions">{actions}</div>}
       </div>
 
       <RichText className="qstem" text={question.stem} />

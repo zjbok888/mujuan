@@ -160,12 +160,14 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
           >
             {showKey ? '教师版（含答案）' : '学生版'}
           </button>
+          <span className="actions-sep" />
           <button className="btn btn-sm" onClick={() => window.print()}>
             打印 / 存 PDF
           </button>
           <a className="btn btn-sm" href={`/api/papers/${id}/paper.json`} download>
             导出 IR
           </a>
+          <span className="actions-sep" />
           <button className="btn btn-sm" onClick={() => onNavigate(`/stats/${id}`)}>
             学情
           </button>
@@ -197,9 +199,20 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
       <div className="qlist">
         {questions.map((question, index) => (
           <div key={question.id}>
-            <QuestionView index={index} question={question} showAnswer={showKey} />
-            <div className="actions" style={{ marginTop: 8, paddingLeft: 4 }}>
-              {editing === question.id ? (
+            <QuestionView
+              index={index}
+              question={question}
+              showAnswer={showKey}
+              actions={
+                editing === question.id ? null : (
+                  <button className="btn btn-sm btn-ghost" onClick={() => beginEdit(question)}>
+                    编辑
+                  </button>
+                )
+              }
+            />
+            {editing === question.id && (
+              <div className="actions" style={{ marginTop: 8, paddingLeft: 4 }}>
                 <div className="card panel editbox" style={{ flex: 1 }}>
                   <label className="field">
                     <span className="label">题干（支持 Markdown 与 $LaTeX$）</span>
@@ -241,12 +254,8 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
                     </button>
                   </div>
                 </div>
-              ) : (
-                <button className="btn btn-sm" onClick={() => beginEdit(question)}>
-                  编辑此题
-                </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
