@@ -315,4 +315,53 @@ export function registerDiagnosisRoute(app: FastifyInstance, deps: StudentDeps):
       })
     }
   })
+
+  /** 错题本：跨试卷汇总同一个学生的所有错题，按错误次数排序 */
+  app.get('/api/student/mistakes', async (request, reply) => {
+    const me = currentUser(request)
+    if (!me) return reply.code(401).send({ error: 'UNAUTHENTICATED', message: '请先登录' })
+
+    const groups = new Map<string, {
+      questionId: string
+      paperId: string
+      paperTitle: string
+      type: string
+      stem: string
+      options: Array<{ key: string; text: string }>
+      answers: string[]
+      explanation: string
+      knowledgePoints: string[]
+      wrongCount: number
+    }>()
+
+    for (const summary of await deps.repo.listPapers()) {
+      const record = await deps.repo.getPaper(summary.id)
+      if (!record) continue
+      const questions = record.ir.sections.flatMap((s) => s.questions)
+      for (const attempt of await deps.repo.listAttempts(summary.id)) {
+        if (attempt.preview || attempt.student !== me.displayName) continue
+        for (const result of attempt.result.results) {
+          if (result.verdict === 'correct') continue
+          const q = questions.find((item) => item.id === result.questionId)
+          if (!q) continue
+          const key = `${summary.id}:${q.id}`
+          const prev = groups.get(key)
+          groups.set(key, {
+            questionId: q.id,
+            paperId: summary.id,
+            paperTitle: record.ir.title,
+            type: q.type,
+            stem: q.stem,
+            options: q.options ?? [],
+            answers: q.answers,
+            explanation: q.explanation ?? '',
+            knowledgePoints: q.knowledgePoints,
+            wrongCount: (prev?.wrongCount ?? 0) + 1,
+          })
+        }
+      }
+    }
+
+    return { items: [...groups.values()].sort((a, b) => b.wrongCount - a.wrongCount) }
+  })
 }

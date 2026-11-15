@@ -8,7 +8,7 @@
 import { z } from 'zod'
 
 export const assistantContextSchema = z.object({
-  page: z.enum(['compose', 'library', 'paper', 'take', 'stats', 'settings', 'student', 'review', 'reviews', 'members']).default('compose'),
+  page: z.enum(['compose', 'library', 'paper', 'take', 'stats', 'settings', 'student', 'review', 'reviews', 'mistakes', 'members']).default('compose'),
   paperId: z.string().max(64).optional(),
   /** 用户当前正在看的那道题（1 起） */
   questionIndex: z.number().int().min(1).max(200).optional(),

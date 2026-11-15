@@ -12,6 +12,7 @@ import { LibraryPage } from './pages/library.js'
 import { PaperPage } from './pages/paper.js'
 import { ReviewPage } from './pages/review.js'
 import { ReviewsPage } from './pages/reviews.js'
+import { MistakesPage } from './pages/mistakes.js'
 import { SettingsPage } from './pages/settings.js'
 import { StatsPage } from './pages/stats.js'
 import { StudentPage } from './pages/student.js'
@@ -28,6 +29,7 @@ export type Route =
   | { name: 'stats'; id: string }
   | { name: 'review'; id: string }
   | { name: 'reviews' }
+  | { name: 'mistakes' }
 
 function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean)
@@ -40,6 +42,7 @@ function parseRoute(hash: string): Route {
   if (head === 'take' && id) return { name: 'take', id }
   if (head === 'stats' && id) return { name: 'stats', id }
   if (head === 'reviews') return { name: 'reviews' }
+  if (head === 'mistakes') return { name: 'mistakes' }
   if (head === 'review' && id) return { name: 'review', id }
   return { name: 'compose' }
 }
@@ -117,7 +120,7 @@ export function App() {
   const allowed: Route['name'][] =
     ROLE === 'teacher'
       ? ['compose', 'library', 'paper', 'take', 'stats', 'settings', 'members']
-      : ['student', 'take', 'review', 'reviews']
+      : ['student', 'take', 'review', 'reviews', 'mistakes']
   // 直接敲别的端的地址也不该串台，回落本端首页
   const view: Route = allowed.includes(route.name)
     ? route
@@ -165,6 +168,9 @@ export function App() {
               </a>
               <a href="#/reviews" className={view.name === 'review' || view.name === 'reviews' ? 'active' : ''}>
                 <i className="dot" />错题回顾
+              </a>
+              <a href="#/mistakes" className={view.name === 'mistakes' ? 'active' : ''}>
+                <i className="dot" />错题本
               </a>
             </>
           )}
@@ -223,6 +229,7 @@ export function App() {
         {view.name === 'library' && <LibraryPage onNavigate={go} />}
         {view.name === 'student' && <StudentPage onNavigate={go} />}
         {view.name === 'reviews' && <ReviewsPage onNavigate={go} />}
+        {view.name === 'mistakes' && <MistakesPage />}
         {view.name === 'review' && <ReviewPage id={view.id} onNavigate={go} />}
         {view.name === 'settings' && <SettingsPage />}
         {view.name === 'members' && <MembersPage />}
