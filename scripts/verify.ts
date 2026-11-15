@@ -284,6 +284,35 @@ check('两端路由面隔离：学生端碰不到出卷与改题', async () => {
   return `${attempts.length} 条教师端接口在学生端均为 404`
 })
 
+check('交卷：不依赖请求体里的 student，且不可冒充', async () => {
+  // 前端早已改成"身份来自会话"；如果接口还把 student 当必填，整片交卷会 400
+  const bare = await sInject({
+    method: 'POST',
+    url: '/api/attempts',
+    payload: { paperId, answers: {} },
+  })
+  if (bare.statusCode !== 200) {
+    throw new Error(`不带 student 的交卷应成功，实际 ${bare.statusCode}`)
+  }
+
+  // 多传一个 student 也不能被采信
+  const spoof = await sInject({
+    method: 'POST',
+    url: '/api/attempts',
+    payload: { paperId, student: '冒名者', answers: {} },
+  })
+  if (spoof.statusCode !== 200) throw new Error(`交卷失败 ${spoof.statusCode}`)
+  const attemptId = (spoof.json() as { attemptId: string }).attemptId
+
+  const detail = await sInject({ method: 'GET', url: `/api/attempts/${attemptId}` })
+  const studentName = (detail.json() as { attempt: { student: string } }).attempt.student
+  if (studentName !== '自检同学') {
+    throw new Error(`身份应取会话（自检同学），实际记录为 ${studentName}`)
+  }
+
+  return '空 student 可交卷 · 伪造 student 被忽略'
+})
+
 check('草稿试答：可交卷但不污染学情', async () => {
   if (!generated) throw new Error('前置步骤未完成')
   // 新建一份草稿（不发布），直接交卷

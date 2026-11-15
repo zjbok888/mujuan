@@ -5,8 +5,12 @@ import { currentUser } from '../auth/session.js'
 
 const attemptBodySchema = z.object({
   paperId: z.string().min(1).max(64),
-  student: z.string().min(1).max(40),
-  answers: z.record(z.string(), z.array(z.string().max(2000)).max(8)),
+  /**
+   * 兼容旧客户端：字段可以不带，服务端一律以会话身份为准。
+   * 之前把它写成必填，导致前端改成"身份来自登录态"后交卷整片 400。
+   */
+  student: z.string().max(40).optional(),
+  answers: z.record(z.string(), z.array(z.string().max(2000)).max(8)).default({}),
 })
 
 /**
@@ -19,7 +23,11 @@ export function registerAttemptRoutes(app: FastifyInstance, deps: { repo: PaperR
   app.post('/api/attempts', async (request, reply) => {
     const parsed = attemptBodySchema.safeParse(request.body)
     if (!parsed.success) {
-      return reply.code(400).send({ error: 'INVALID_REQUEST', message: '作答数据不合法' })
+      const issue = parsed.error.issues[0]
+      return reply.code(400).send({
+        error: 'INVALID_REQUEST',
+        message: issue ? `作答数据不合法：${issue.path.join('.') || '格式'} ${issue.message}` : '作答数据不合法',
+      })
     }
     const record = await deps.repo.getPaper(parsed.data.paperId)
     if (!record) return reply.code(404).send({ error: 'NOT_FOUND', message: '试卷不存在' })

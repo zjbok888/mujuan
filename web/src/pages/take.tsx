@@ -11,7 +11,7 @@ interface PaperResponse {
   paper: PaperIR
 }
 
-export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: string) => void }) {
+export function TakePage({ id, studentName, onNavigate }: { id: string; studentName?: string; onNavigate: (path: string) => void }) {
   const [data, setData] = useState<PaperResponse | null>(null)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [result, setResult] = useState<GradeResult | null>(null)
@@ -173,6 +173,7 @@ export function TakePage({ id, onNavigate }: { id: string; onNavigate: (path: st
               满分 {data.paper.totalScore} 分 · {data.paper.durationMin} 分钟
             </span>
             <span>已作答 {answered}/{questions.length}</span>
+            {studentName && <span className="tag">{studentName}</span>}
             {remaining !== null && (
               <span
                 className={`countdown${remaining <= 60 ? ' err' : remaining <= 300 ? ' warn' : ''}`}

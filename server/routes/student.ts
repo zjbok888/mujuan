@@ -44,7 +44,6 @@ export function registerStudentRoutes(app: FastifyInstance, deps: StudentDeps): 
     // 身份来自会话，不再信任查询参数
     const student = currentUser(request)?.displayName ?? ''
     const papers = (await deps.repo.listPapers()).filter((p) => p.status === 'published')
-
     const items: StudentPaper[] = []
     for (const summary of papers) {
       const attempts = (await deps.repo.listAttempts(summary.id)).filter(
@@ -67,6 +66,19 @@ export function registerStudentRoutes(app: FastifyInstance, deps: StudentDeps): 
       })
     }
     return { items }
+  })
+
+  /**
+   * 单份试卷。
+   * 答卷页用的是 `/api/papers/:id`，但那条路由只在教师端注册；
+   * 学生端补一条同名路由，且**只放行已发布**——草稿对学生必须像不存在一样。
+   */
+  app.get<{ Params: { id: string } }>('/api/papers/:id', async (request, reply) => {
+    const record = await deps.repo.getPaper(request.params.id)
+    if (!record || record.status !== 'published') {
+      return reply.code(404).send({ error: 'NOT_FOUND', message: '试卷不存在或尚未发布' })
+    }
+    return { id: record.id, status: record.status, paper: record.ir }
   })
 
   /** 我的全部作答记录，按时间倒序 */

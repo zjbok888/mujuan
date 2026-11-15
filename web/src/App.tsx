@@ -223,7 +223,7 @@ export function App() {
         {view.name === 'settings' && <SettingsPage />}
         {view.name === 'members' && <MembersPage />}
         {view.name === 'paper' && <PaperPage id={view.id} onNavigate={go} />}
-        {view.name === 'take' && <TakePage id={view.id} onNavigate={go} />}
+        {view.name === 'take' && <TakePage id={view.id} studentName={user.displayName} onNavigate={go} />}
         {view.name === 'stats' && <StatsPage id={view.id} onNavigate={go} />}
       </main>
 
