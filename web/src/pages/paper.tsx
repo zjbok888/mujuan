@@ -3,6 +3,7 @@ import type { PaperIR, Question } from '@shared/ir.js'
 import { paperStats, QUESTION_TYPE_LABEL } from '@shared/ir.js'
 import { api } from '../api.js'
 import { QuestionView } from '../components/question-view.js'
+import { RichText } from '../components/rich-text.js'
 
 interface PaperResponse {
   id: string
@@ -274,7 +275,7 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
                   <td className="mono">{String(index + 1).padStart(2, '0')}</td>
                   <td>{QUESTION_TYPE_LABEL[question.type]}</td>
                   <td style={{ color: 'var(--seal)', fontWeight: 600 }}>
-                    {question.answers.join(' / ')}
+                    <RichText text={question.answers.join(' / ')} />
                   </td>
                   <td>{question.score}</td>
                   <td className="muted">{question.knowledgePoints.join('、') || '—'}</td>

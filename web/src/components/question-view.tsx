@@ -49,8 +49,10 @@ export function QuestionView({
 
       {showAnswer && (
         <div style={{ marginTop: 10, fontSize: 13 }}>
-          <span className="label">参考答案　</span>
-          <span style={{ color: 'var(--seal)', fontWeight: 600 }}>{question.answers.join(' / ')}</span>
+          <span className="label">参考答案</span>
+          <div style={{ color: 'var(--seal)', fontWeight: 600, lineHeight: 1.8 }}>
+            <RichText text={question.answers.join(' / ')} />
+          </div>
           {question.keywordRubric && question.keywordRubric.length > 0 && (
             <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--ink-2)' }}>
               评分要点：

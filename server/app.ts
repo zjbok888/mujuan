@@ -12,7 +12,7 @@ import { registerPaperRoutes } from './routes/papers.js'
 import { registerStatsRoutes } from './routes/stats.js'
 import { registerSettingsRoutes } from './routes/settings.js'
 import { registerAssistantRoutes } from './routes/assistant.js'
-import { registerStudentRoutes } from './routes/student.js'
+import { registerStudentRoutes, registerDiagnosisRoute } from './routes/student.js'
 import { registerAttemptRoutes } from './routes/attempts.js'
 import { registerAuthRoutes } from './routes/auth.js'
 import { currentUser } from './auth/session.js'
@@ -150,6 +150,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     registerAssistantRoutes(app, { config, repo: deps.repo, makeLlmPort })
   } else {
     registerStudentRoutes(app, { repo: deps.repo, makeLlmPort })
+    registerDiagnosisRoute(app, { repo: deps.repo, makeLlmPort })
   }
 
   // ── 静态资源 + 按端注入角色 ────────────────────────────────────────

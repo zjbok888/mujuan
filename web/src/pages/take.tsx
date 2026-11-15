@@ -154,7 +154,16 @@ export function TakePage({ id, studentName, onNavigate }: { id: string; studentN
               </div>
               <RichText className="qstem" text={question.stem} />
               <div style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>
-                参考答案：<strong style={{ color: 'var(--seal)' }}>{question.answers.join(' / ')}</strong>
+                <span>参考答案：</span>
+                <div style={{ color: 'var(--seal)', fontWeight: 600, lineHeight: 1.8 }}>
+                  <RichText text={question.answers.join(' / ')} />
+                </div>
+                {question.explanation && (
+                  <div className="explain" style={{ marginTop: 8 }}>
+                    <span className="label">解析</span>
+                    <RichText text={question.explanation} />
+                  </div>
+                )}
               </div>
             </article>
           )

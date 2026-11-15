@@ -3,7 +3,7 @@ import type { Blueprint, GenerateRequest, PaperIR, QuestionType } from '../../sh
 import { QUESTION_TYPE_LABEL } from '../../shared/ir.js'
 
 /** 提示词版本号会写进 PaperIR.meta，便于追溯"哪一版提示词产出了哪份卷子" */
-export const PROMPT_VERSION = 'v1.3.0'
+export const PROMPT_VERSION = 'v1.4.0'
 
 const PLAN_SYSTEM = `你是一位资深命题教师，擅长依据教学大纲规划试卷结构。
 只输出 JSON 对象，不要解释、不要 Markdown 代码块、不要前后缀文字。
@@ -32,7 +32,7 @@ const ITEMS_SYSTEM = `你是一位资深命题教师。根据蓝图与系统给�
 - keywordRubric: 仅简答题需要，[{ "keyword": "要点", "points": 2 }]
 - difficulty: 1-5 的整数
 - knowledgePoints: 从蓝图 coverage 中选取 1-3 个
-- explanation: 60 字以内解析
+- explanation: 解析，讲清"为什么"（下面有硬性要求）
 
 硬性约束（违反即视为不合格）：
 1. 题位清单里的顺序、题型、分值不可更改，不得增删题目；
@@ -44,7 +44,12 @@ const ITEMS_SYSTEM = `你是一位资深命题教师。根据蓝图与系统给�
    绝不允许写成"正确求出…""说明…"这类描述性长句——评分程序只做字面匹配；
    keywordRubric 各项 points 之和必须精确等于该题分值；
 6. 题干不得与"已出题目"重复，也不得两题考同一个点；
-7. 公式一律用 LaTeX，例如 $\\frac{1}{2}x^2$、$\\sqrt{3}$。`
+7. 公式一律用 LaTeX，例如 $\\frac{1}{2}x^2$、$\\sqrt{3}$；
+8. explanation 必须是**给学生看的详细解析**（80-200 字）：
+   - 选择题/填空题：写出关键推导步骤，并点明错误选项是怎么被设计出来的；
+   - 简答题：按小问分点写完整解法，关键步骤带公式，最后给出结论；
+   - 都要用 $...$ 包裹公式（不要写 \\frac 这类裸 LaTeX，会被当成乱码原样显示）；
+   - 不要只写一句"由题意可得"，学生看不懂就等于没有解析。`
 
 const REPAIR_SYSTEM = `你是试卷质检员。输入是一份 JSON 试卷与一份校验问题清单。
 只输出修正后的完整 JSON 对象（结构与原试卷完全一致），不要解释。

@@ -130,16 +130,20 @@ export function ReviewPage({ id, onNavigate }: { id: string; onNavigate: (path: 
             <div>
               <span className="label">你的答案</span>
               <div className="val err">
-                {item.myAnswer === undefined
-                  ? '（这条早期记录没有保存作答）'
-                  : item.myAnswer.length > 0
-                    ? item.myAnswer.join(' / ')
-                    : '（未作答）'}
+                {item.myAnswer === undefined ? (
+                  '（这条早期记录没有保存作答）'
+                ) : item.myAnswer.length > 0 ? (
+                  <RichText text={item.myAnswer.join(' / ')} />
+                ) : (
+                  '（未作答）'
+                )}
               </div>
             </div>
             <div>
               <span className="label">正确答案</span>
-              <div className="val ok">{item.question.answers.join(' / ')}</div>
+              <div className="val ok">
+                <RichText text={item.question.answers.join(' / ')} />
+              </div>
             </div>
           </div>
 

@@ -3,7 +3,7 @@ import { assistantChatSchema, encodeAssistantSse, type AssistantEvent } from '..
 import { SSE_HEADERS } from '../../shared/events.js'
 import { runStudentTutor } from '../domain/assistant.js'
 import type { LlmPort } from '../domain/generator.js'
-import { LlmError } from '../infra/llm.js'
+import { LlmError, extractJson } from '../infra/llm.js'
 import { createRateLimiter } from '../infra/rate-limit.js'
 import type { PaperRepo } from '../infra/repo.js'
 import { isDemo } from '../settings.js'
@@ -219,6 +219,100 @@ export function registerStudentRoutes(app: FastifyInstance, deps: StudentDeps): 
     } finally {
       emit({ type: 'done' })
       res.end()
+    }
+  })
+}
+
+const DIAGNOSIS_SYSTEM = `你是学习诊断老师。根据学生的错题记录，给出具体、可执行的学习建议。
+只输出 JSON：{"overview":"一句话总评（30字内）","weaknesses":[{"point":"知识点","reason":"为什么弱（20字内）"}],"actions":["具体做法（30字内）"]}
+硬性要求：
+1. weaknesses 最多 3 条，必须来自给定知识点，不得编造；
+2. actions 恰好 3 条，要能今天就做（例如"重做第 3、7 题并写出每一步理由"），
+   禁止"多练习""认真听讲"这类空话；
+3. 中文，不要 markdown，不要道歉，不要重复题干。`
+
+/** 学习诊断：把学生的错题汇总成一份可执行建议 */
+export function registerDiagnosisRoute(app: FastifyInstance, deps: StudentDeps): void {
+  const allow = createRateLimiter(6, 60_000)
+
+  app.post('/api/student/diagnosis', async (request, reply) => {
+    const me = currentUser(request)
+    if (!me) return reply.code(401).send({ error: 'UNAUTHENTICATED', message: '请先登录' })
+    if (!allow(request.ip)) return reply.code(429).send({ error: 'RATE_LIMITED', message: '诊断太频繁，稍后再试' })
+    if (isDemo()) {
+      return reply.code(409).send({ error: 'DEMO_MODE', message: '演示模式下没有可用的模型，诊断需要真实接入' })
+    }
+
+    const papers = await deps.repo.listPapers()
+    const wrong: string[] = []
+    let attempts = 0
+    let ratioSum = 0
+
+    for (const summary of papers) {
+      const record = await deps.repo.getPaper(summary.id)
+      if (!record) continue
+      const questions = record.ir.sections.flatMap((s) => s.questions)
+      for (const attempt of await deps.repo.listAttempts(summary.id)) {
+        if (attempt.preview || attempt.student !== me.displayName) continue
+        attempts += 1
+        ratioSum += attempt.maxScore > 0 ? attempt.score / attempt.maxScore : 0
+        attempt.result.results.forEach((r, index) => {
+          if (r.verdict === 'correct') return
+          const q = questions.find((item) => item.id === r.questionId)
+          if (!q) return
+          wrong.push(
+            `- 第 ${index + 1} 题（${q.type}，知识点：${q.knowledgePoints.join('、') || '未标注'}）` +
+              `学生答：${(r.answer ?? []).join(' / ') || '空'}；正确答案：${q.answers.join(' / ')}`,
+          )
+        })
+      }
+    }
+
+    if (attempts === 0) return { diagnosis: null, message: '还没有提交记录，先做一套卷子吧' }
+    if (wrong.length === 0) {
+      return {
+        diagnosis: { overview: '全部答对了，暂时没有薄弱点', weaknesses: [], actions: ['换一份更难的卷子继续练'] },
+        message: '',
+      }
+    }
+
+    const avg = Math.round((ratioSum / attempts) * 100)
+    const context = [
+      `学生：${me.displayName}`,
+      `已完成 ${attempts} 次作答，平均得分率 ${avg}%`,
+      `错题清单（最多 30 条）：`,
+      ...wrong.slice(0, 30),
+    ].join('\n')
+
+    try {
+      const raw = await deps.makeLlmPort(new AbortController().signal)(
+        [
+          { role: 'system', content: DIAGNOSIS_SYSTEM },
+          { role: 'user', content: context },
+        ],
+        { json: true, maxTokens: 3000 },
+      )
+      const parsed = extractJson(raw) as {
+        overview?: string
+        weaknesses?: Array<{ point?: string; reason?: string }>
+        actions?: string[]
+      }
+      return {
+        diagnosis: {
+          overview: parsed.overview ?? '',
+          weaknesses: (parsed.weaknesses ?? []).slice(0, 3).map((w) => ({
+            point: w.point ?? '',
+            reason: w.reason ?? '',
+          })),
+          actions: (parsed.actions ?? []).slice(0, 3),
+        },
+        message: '',
+      }
+    } catch (error) {
+      return reply.code(502).send({
+        error: 'DIAGNOSIS_FAILED',
+        message: error instanceof LlmError ? error.message : '诊断生成失败，请稍后再试',
+      })
     }
   })
 }
