@@ -53,6 +53,26 @@ export function LibraryPage({ onNavigate }: { onNavigate: (path: string) => void
     }
   }
 
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<'all' | 'draft' | 'published'>('all')
+  const [sort, setSort] = useState<'new' | 'old'>('new')
+
+  const visible = (items ?? [])
+    .filter((paper) => (filter === 'all' ? true : paper.status === filter))
+    .filter((paper) => {
+      const q = query.trim().toLowerCase()
+      if (!q) return true
+      return (
+        paper.title.toLowerCase().includes(q) ||
+        paper.subject.toLowerCase().includes(q) ||
+        paper.grade.toLowerCase().includes(q)
+      )
+    })
+    .sort((a, b) => {
+      const cmp = a.createdAt.localeCompare(b.createdAt)
+      return sort === 'new' ? -cmp : cmp
+    })
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <header className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -67,6 +87,37 @@ export function LibraryPage({ onNavigate }: { onNavigate: (path: string) => void
 
       {error && <div className="statusbar err">{error}</div>}
 
+      {(items?.length ?? 0) > 0 && (
+        <div className="toolbar">
+          <input
+            className="input"
+            style={{ maxWidth: 260 }}
+            placeholder="搜索标题 / 学科 / 年级"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <div className="segmented">
+            {([
+              ['all', `全部 ${items?.length ?? 0}`],
+              ['published', `已发布 ${items?.filter((p) => p.status === 'published').length ?? 0}`],
+              ['draft', `草稿 ${items?.filter((p) => p.status === 'draft').length ?? 0}`],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                className={filter === key ? 'active' : ''}
+                onClick={() => setFilter(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <select className="input" style={{ maxWidth: 140 }} value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+            <option value="new">最新优先</option>
+            <option value="old">最早优先</option>
+          </select>
+        </div>
+      )}
+
       {items && items.length === 0 && (
         <div className="stage-empty">
           <div className="glyph">空</div>
@@ -74,8 +125,12 @@ export function LibraryPage({ onNavigate }: { onNavigate: (path: string) => void
         </div>
       )}
 
+      {items && items.length > 0 && visible.length === 0 && (
+        <div className="card panel muted">没有匹配的试卷，换个关键词或筛选条件。</div>
+      )}
+
       <div className="lib">
-        {items?.map((paper) => (
+        {visible.map((paper) => (
           <article className="card lib-card" key={paper.id} onClick={() => onNavigate(`/paper/${paper.id}`)}>
             <div style={{ display: 'flex', gap: 6 }}>
               {paper.status === 'published' ? (

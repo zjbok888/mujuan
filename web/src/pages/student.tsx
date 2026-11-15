@@ -41,6 +41,7 @@ export function StudentPage({ onNavigate }: { onNavigate: (path: string) => void
   const [papers, setPapers] = useState<StudentPaper[] | null>(null)
   const [attempts, setAttempts] = useState<MyAttempt[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [tab, setTab] = useState<'all' | 'todo' | 'done'>('all')
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null)
   const [diagBusy, setDiagBusy] = useState(false)
   const [diagError, setDiagError] = useState<string | null>(null)
@@ -90,13 +91,24 @@ export function StudentPage({ onNavigate }: { onNavigate: (path: string) => void
 
       <section>
         <h2 style={{ marginBottom: 10 }}>可作答的试卷</h2>
+        {papers && papers.length > 0 && (
+          <div className="segmented" style={{ marginBottom: 12 }}>
+            {([['all', '全部'], ['todo', '未做'], ['done', '已做']] as const).map(([key, label]) => (
+              <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {papers === null ? (
           <div className="stage-empty">载入中…</div>
         ) : papers.length === 0 ? (
           <div className="card panel muted">老师还没有发布试卷。等发布后再来看看。</div>
         ) : (
           <div className="grid-2" style={{ gap: 12 }}>
-            {papers.map((paper) => (
+            {papers
+              .filter((paper) => (tab === 'all' ? true : tab === 'todo' ? paper.myAttempts === 0 : paper.myAttempts > 0))
+              .map((paper) => (
               <article className="card lib-card" key={paper.id} style={{ cursor: 'default' }}>
                 <div className="lib-head">
                   <span className="tag ok">已发布</span>

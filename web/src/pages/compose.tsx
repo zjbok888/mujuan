@@ -28,6 +28,33 @@ export function ComposePage({ onNavigate }: { onNavigate: (path: string) => void
   const [outline, setOutline] = useState('')
   const [mix, setMix] = useState<Record<QuestionType, number>>({ single: 4, multiple: 0, blank: 2, short: 1 })
 
+  /**
+   * 大纲模板存本地：这是"每位老师的私人习惯"，没必要进服务端，
+   * 也不该跨账号共享。最多留 6 条，避免越攒越乱。
+   */
+  const [templates, setTemplates] = useState<Array<{ name: string; text: string }>>(() => {
+    try {
+      const raw = localStorage.getItem('mujuan:outlines')
+      return raw ? (JSON.parse(raw) as Array<{ name: string; text: string }>) : []
+    } catch {
+      return []
+    }
+  })
+
+  const persist = (next: Array<{ name: string; text: string }>): void => {
+    setTemplates(next)
+    localStorage.setItem('mujuan:outlines', JSON.stringify(next))
+  }
+
+  const saveTemplate = (name: string, text: string): void => {
+    const next = [{ name: name.slice(0, 20), text }, ...templates.filter((t) => t.name !== name)].slice(0, 6)
+    persist(next)
+  }
+
+  const removeTemplate = (name: string): void => {
+    persist(templates.filter((t) => t.name !== name))
+  }
+
   const autoStartedRef = useRef(false)
 
   const questionCount = useMemo(() => Object.values(mix).reduce((a, b) => a + b, 0), [mix])
@@ -157,12 +184,52 @@ export function ComposePage({ onNavigate }: { onNavigate: (path: string) => void
               取消
             </button>
           ) : (
-            <button className="btn" onClick={() => setOutline(SAMPLE_OUTLINE)}>
-              填入示例
-            </button>
+            <>
+              <button className="btn" onClick={() => setOutline(SAMPLE_OUTLINE)}>
+                填入示例
+              </button>
+              <button
+                className="btn"
+                disabled={outline.trim().length < 8}
+                onClick={() => {
+                  const name = window.prompt('给这段大纲起个名字（方便下次复用）', subject + ' · ' + grade)
+                  if (!name) return
+                  saveTemplate(name, outline)
+                }}
+                title="把当前大纲存为模板，下次一键复用"
+              >
+                存为模板
+              </button>
+            </>
           )}
         </div>
 
+        {templates.length > 0 && !running && (
+          <div className="chips">
+            <span className="muted" style={{ fontSize: 11.5, alignSelf: 'center' }}>
+              常用大纲
+            </span>
+            {templates.map((item) => (
+              <span key={item.name} className="chip template-chip">
+                <button
+                  className="template-load"
+                  onClick={() => setOutline(item.text)}
+                  title="点击填入"
+                >
+                  {item.name}
+                </button>
+                <button
+                  className="template-del"
+                  onClick={() => removeTemplate(item.name)}
+                  title="删除"
+                  aria-label={`删除模板 ${item.name}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="muted" style={{ fontSize: 11.5, display: 'flex', justifyContent: 'space-between' }}>
           <span>
             共 {questionCount} 题 · 合计 {totalScore} 分 · {durationMin} 分钟
