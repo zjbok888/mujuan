@@ -106,7 +106,7 @@ export function App() {
 
   if (!authChecked) return <div className="stage-empty" style={{ paddingTop: 120 }}>载入中…</div>
   if (!user) {
-    return <LoginPage role={ROLE_ID} peerPort={health?.peerPort} onLoggedIn={setUser} />
+    return <LoginPage role={ROLE_ID} onLoggedIn={setUser} />
   }
 
   // 同一个构建产物，两端各自注入角色：教师端渲染出卷/卷库/接入，学生端只渲染试卷与错题

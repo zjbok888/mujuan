@@ -57,6 +57,25 @@ export function registerAuthRoutes(app: FastifyInstance, deps: { role: Role; pee
     return { user, expectedRole: deps.role }
   })
 
+  /**
+   * 登录页的"快速填充"数据源。
+   * 只在**默认口令还没被改过**时才返回——它自带失效条件：
+   * 老师一旦改了密码，前端按钮自动消失，不会留下一个永远能拿到口令的后门。
+   */
+  app.get('/api/auth/demo-credentials', async () => {
+    const candidates =
+      deps.role === 'teacher'
+        ? [{ username: (process.env.TEACHER_USER ?? 'teacher').trim(), password: 'mujuan2026' }]
+        : [{ username: 'xiaoman', password: '123456' }]
+
+    for (const candidate of candidates) {
+      if (verifyLogin(candidate.username, candidate.password)) {
+        return { credentials: candidate }
+      }
+    }
+    return { credentials: null }
+  })
+
   // ── 以下仅教师可用：班级成员管理 ────────────────────────────────
   app.get('/api/users', async (request, reply) => {
     const user = currentUser(request)

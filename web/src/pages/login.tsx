@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PublicUser } from '@shared/auth.js'
-import { login } from '../auth.js'
+import { fetchDemoCredentials, login } from '../auth.js'
 
 /**
  * 两个端口共用同一个登录页，但标题与提示按端区分。
@@ -8,17 +8,21 @@ import { login } from '../auth.js'
  */
 export function LoginPage({
   role,
-  peerPort,
   onLoggedIn,
 }: {
   role: 'teacher' | 'student'
-  peerPort?: number
   onLoggedIn: (user: PublicUser) => void
 }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [demo, setDemo] = useState<{ username: string; password: string } | null>(null)
+
+  // 只有默认口令还没改过时才会有值；改过密码按钮就自动消失
+  useEffect(() => {
+    void fetchDemoCredentials().then(setDemo)
+  }, [])
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault()
@@ -34,8 +38,6 @@ export function LoginPage({
       setBusy(false)
     }
   }
-
-  const other = role === 'teacher' ? '学生端' : '教师端'
 
   return (
     <div className="login-wrap">
@@ -74,23 +76,23 @@ export function LoginPage({
 
         {error && <div className="statusbar err" style={{ marginTop: 4 }}>{error}</div>}
 
+        {demo && (
+          <button
+            className="btn btn-sm btn-ghost login-fill"
+            type="button"
+            onClick={() => {
+              setUsername(demo.username)
+              setPassword(demo.password)
+              setError(null)
+            }}
+          >
+            一键填充测试账号
+          </button>
+        )}
+
         <button className="btn btn-primary" type="submit" disabled={busy || !username || !password}>
           {busy ? '登录中…' : role === 'teacher' ? '进入教师端' : '进入学生端'}
         </button>
-
-        <p className="muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.7 }}>
-          学生账号由老师创建，不支持自助注册。
-          {peerPort ? (
-            <>
-              {' '}
-              如果你是{other}，请访问{' '}
-              <a href={`http://${window.location.hostname}:${peerPort}/`}>
-                {window.location.hostname}:{peerPort}
-              </a>
-              。
-            </>
-          ) : null}
-        </p>
       </form>
     </div>
   )

@@ -155,14 +155,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // ── 静态资源 + 按端注入角色 ────────────────────────────────────────
   const indexFile = join(config.webDist, 'index.html')
   if (existsSync(indexFile)) {
-    const html = readFileSync(indexFile, 'utf8')
-    // 同一个构建产物，两端各自注入角色，前端据此决定渲染哪一套页面
-    const withRole = html.replace(
-      '</head>',
-      `<script>window.__MJUAN_ROLE__=${JSON.stringify(role)}</script></head>`,
-    )
-    // 路由优先级：具名 `GET /` 高于静态插件的通配，所以这里能覆盖 index.html
-    app.get('/', async (_request, reply) => reply.type('text/html; charset=utf-8').send(withRole))
+    /**
+     * 每次请求都读盘注入角色，**不能缓存**：
+     * 构建后文件名带新哈希，缓存住旧 HTML 会让 /assets/* 全部 404，整站白屏。
+     * 文件只有几百字节，重读的代价可以忽略。
+     */
+    app.get('/', async (_request, reply) => {
+      const html = readFileSync(indexFile, 'utf8').replace(
+        '</head>',
+        `<script>window.__MJUAN_ROLE__=${JSON.stringify(role)}</script></head>`,
+      )
+      return reply.type('text/html; charset=utf-8').send(html)
+    })
     // 不要关掉 wildcard：关掉之后只有 "/" 能被服务，/assets/* 全部 404，页面白屏
     await app.register(fastifyStatic, { root: config.webDist, prefix: '/', index: false })
   } else {

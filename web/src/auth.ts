@@ -24,3 +24,15 @@ export async function login(username: string, password: string): Promise<PublicU
 export async function logout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' })
 }
+
+/** 默认口令没被改过时，服务端才会给出测试账号；否则返回 null */
+export async function fetchDemoCredentials(): Promise<{ username: string; password: string } | null> {
+  try {
+    const res = await fetch('/api/auth/demo-credentials')
+    if (!res.ok) return null
+    const data = (await res.json()) as { credentials?: { username: string; password: string } | null }
+    return data.credentials ?? null
+  } catch {
+    return null
+  }
+}
