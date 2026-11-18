@@ -8,9 +8,12 @@ import { fetchDemoCredentials, login } from '../auth.js'
  */
 export function LoginPage({
   role,
+  notice,
   onLoggedIn,
 }: {
   role: 'teacher' | 'student'
+  /** 跨端登录被拦下时的说明 */
+  notice?: string
   onLoggedIn: (user: PublicUser) => void
 }) {
   const [username, setUsername] = useState('')
@@ -74,6 +77,7 @@ export function LoginPage({
           />
         </label>
 
+        {notice && !error && <div className="statusbar warn">{notice}</div>}
         {error && <div className="statusbar err" style={{ marginTop: 4 }}>{error}</div>}
 
         {demo && (

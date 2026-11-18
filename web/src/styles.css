@@ -743,3 +743,10 @@ table.plain tr:last-child td { border-bottom: none; }
 .template-load:hover { color: var(--seal); }
 .template-del { font-size: 13px; color: var(--ink-3); padding: 0 3px; line-height: 1; }
 .template-del:hover { color: var(--seal); }
+
+/* flex 行里标签会被压缩到比文字还窄——加换行 + 禁止收缩，
+   这是诊断卡与错题本标签重叠的共同根因 */
+.qcard-head { flex-wrap: wrap; }
+.qcard-head > .tag { flex: 0 0 auto; min-width: max-content; width: max-content; }
+.qcard-head > .qnum { flex: 0 0 auto; }
+.tag { white-space: nowrap; }

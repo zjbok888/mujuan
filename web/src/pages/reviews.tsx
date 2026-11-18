@@ -20,7 +20,10 @@ export function ReviewsPage({ onNavigate }: { onNavigate: (path: string) => void
     api
       .get<{ items: MyAttempt[] }>('/api/student/attempts')
       .then((res) => setItems(res.items))
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => {
+        setError(err.message)
+        setItems([])
+      })
   }, [])
 
   return (

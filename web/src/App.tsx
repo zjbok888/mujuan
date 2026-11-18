@@ -72,15 +72,31 @@ export function App() {
   const [health, setHealth] = useState<Health | null>(null)
   const [user, setUser] = useState<PublicUser | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
+  const [wrongRole, setWrongRole] = useState<'teacher' | 'student' | null>(null)
   const run = useSyncExternalStore(generation.subscribe, generation.getSnapshot)
   const { filled, total } = generationProgress(run)
 
   // 没有会话就先过登录页；服务端仍然逐个接口校验，前端这层只是体验
   useEffect(() => {
     fetchMe()
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setAuthChecked(true))
+      .then((me) => {
+        // Cookie 不区分端口：老师登录后打开学生端，会话也会被带过来。
+        // 不处理就会渲染出一个"页面在、接口全 403"的假象，所以这里主动登出并提示。
+        if (me && me.role !== ROLE_ID) {
+          setWrongRole(me.role)
+          void logout().finally(() => {
+            setUser(null)
+            setAuthChecked(true)
+          })
+          return
+        }
+        setUser(me)
+        setAuthChecked(true)
+      })
+      .catch(() => {
+        setUser(null)
+        setAuthChecked(true)
+      })
   }, [])
 
   useEffect(() => {
@@ -112,7 +128,26 @@ export function App() {
 
   if (!authChecked) return <div className="stage-empty" style={{ paddingTop: 120 }}>载入中…</div>
   if (!user) {
-    return <LoginPage role={ROLE_ID} onLoggedIn={setUser} />
+    return (
+      <LoginPage
+        role={ROLE_ID}
+        notice={
+          wrongRole
+            ? [
+                '你刚才用的是',
+                wrongRole === 'teacher' ? '老师' : '学生',
+                '账号，这里是',
+                ROLE_ID === 'teacher' ? '教师端' : '学生端',
+                '，已自动退出。请用对应账号登录。',
+              ].join('')
+            : undefined
+        }
+        onLoggedIn={(next) => {
+          setWrongRole(null)
+          setUser(next)
+        }}
+      />
+    )
   }
 
   // 同一个构建产物，两端各自注入角色：教师端渲染出卷/卷库/接入，学生端只渲染试卷与错题

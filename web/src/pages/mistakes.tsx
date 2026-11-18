@@ -25,7 +25,10 @@ export function MistakesPage() {
     api
       .get<{ items: Mistake[] }>('/api/student/mistakes')
       .then((res) => setItems(res.items))
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => {
+        setError(err.message)
+        setItems([])
+      })
   }, [])
 
   const points = ['全部', ...new Set((items ?? []).flatMap((item) => item.knowledgePoints))]
@@ -62,8 +65,10 @@ export function MistakesPage() {
             {visible.map((item) => (
               <article className="card qcard" key={`${item.paperId}:${item.questionId}`}>
                 <div className="qcard-head">
-                  <span className="tag">{QUESTION_TYPE_LABEL[item.type]}</span>
-                  {item.wrongCount > 1 && <span className="tag seal">错过 {item.wrongCount} 次</span>}
+                  <span className={`tag${item.wrongCount > 1 ? ' seal' : ''}`}>
+                    {QUESTION_TYPE_LABEL[item.type]}
+                    {item.wrongCount > 1 ? ` · 错过 ${item.wrongCount} 次` : ''}
+                  </span>
                   {item.knowledgePoints.slice(0, 2).map((kp) => (
                     <span className="tag" key={kp}>
                       {kp}
