@@ -364,4 +364,50 @@ export function registerDiagnosisRoute(app: FastifyInstance, deps: StudentDeps):
 
     return { items: [...groups.values()].sort((a, b) => b.wrongCount - a.wrongCount) }
   })
+
+  /** 排行榜：按试卷聚合，只看每位学生的最好成绩（试答不计） */
+  app.get('/api/student/rank', async (request) => {
+    const me = currentUser(request)
+    const items: Array<{
+      paperId: string
+      paperTitle: string
+      participants: number
+      avg: number
+      top: Array<{ name: string; score: number }>
+      myBest: number | null
+      myRank: number | null
+    }> = []
+
+    for (const summary of await deps.repo.listPapers()) {
+      if (summary.status !== 'published') continue
+      const best = new Map<string, number>()
+      for (const attempt of await deps.repo.listAttempts(summary.id)) {
+        if (attempt.preview) continue
+        const prev = best.get(attempt.student)
+        if (prev === undefined || attempt.score > prev) best.set(attempt.student, attempt.score)
+      }
+      if (best.size === 0) continue
+
+      const scores = [...best.values()]
+      const avg = Math.round((scores.reduce((sum, s) => sum + s, 0) / scores.length) * 10) / 10
+      const ranked = [...best.entries()].sort((a, b) => b[1] - a[1])
+      const myName = me?.displayName ?? ''
+      const myBest = best.get(myName) ?? null
+      const myRank = myBest === null ? null : ranked.findIndex(([name]) => name === myName) + 1
+
+      items.push({
+        paperId: summary.id,
+        paperTitle: summary.title,
+        participants: best.size,
+        avg,
+        top: ranked.slice(0, 5).map(([name, score]) => ({ name, score })),
+        myBest,
+        myRank,
+      })
+    }
+
+    // 我参加过的排前面，其次按参与人数
+    items.sort((a, b) => Number(b.myRank !== null) - Number(a.myRank !== null) || b.participants - a.participants)
+    return { items }
+  })
 }

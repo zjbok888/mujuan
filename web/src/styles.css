@@ -761,3 +761,11 @@ table.plain tr:last-child td { border-bottom: none; }
 
 /* 标签内的次要信息来源，避免并排两个 pill 挤在一起 */
 .tag-sub { margin-left: 6px; opacity: .72; font-weight: 400; }
+
+/* ── 排行榜 ──────────────────────────────────────────────── */
+.rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rank-list li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+.rank-list li.first { background: var(--seal-soft); }
+.rank-no { width: 18px; color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; }
+.rank-name { flex: 1; }
+.rank-score { font-family: var(--font-mono); color: var(--seal); }

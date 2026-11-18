@@ -13,6 +13,8 @@ import { PaperPage } from './pages/paper.js'
 import { ReviewPage } from './pages/review.js'
 import { ReviewsPage } from './pages/reviews.js'
 import { MistakesPage } from './pages/mistakes.js'
+import { RankPage } from './pages/rank.js'
+import { PracticePage } from './pages/practice.js'
 import { SettingsPage } from './pages/settings.js'
 import { StatsPage } from './pages/stats.js'
 import { StudentPage } from './pages/student.js'
@@ -30,6 +32,8 @@ export type Route =
   | { name: 'review'; id: string }
   | { name: 'reviews' }
   | { name: 'mistakes' }
+  | { name: 'rank' }
+  | { name: 'practice' }
 
 function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean)
@@ -43,6 +47,8 @@ function parseRoute(hash: string): Route {
   if (head === 'stats' && id) return { name: 'stats', id }
   if (head === 'reviews') return { name: 'reviews' }
   if (head === 'mistakes') return { name: 'mistakes' }
+  if (head === 'rank') return { name: 'rank' }
+  if (head === 'practice') return { name: 'practice' }
   if (head === 'review' && id) return { name: 'review', id }
   return { name: 'compose' }
 }
@@ -155,7 +161,7 @@ export function App() {
   const allowed: Route['name'][] =
     ROLE === 'teacher'
       ? ['compose', 'library', 'paper', 'take', 'stats', 'settings', 'members']
-      : ['student', 'take', 'review', 'reviews', 'mistakes']
+      : ['student', 'take', 'review', 'reviews', 'mistakes', 'rank', 'practice']
   // 直接敲别的端的地址也不该串台，回落本端首页
   const view: Route = allowed.includes(route.name)
     ? route
@@ -206,6 +212,12 @@ export function App() {
               </a>
               <a href="#/mistakes" className={view.name === 'mistakes' ? 'active' : ''}>
                 <i className="dot" />错题本
+              </a>
+              <a href="#/practice" className={view.name === 'practice' ? 'active' : ''}>
+                <i className="dot" />练习
+              </a>
+              <a href="#/rank" className={view.name === 'rank' ? 'active' : ''}>
+                <i className="dot" />排行榜
               </a>
             </>
           )}
@@ -265,6 +277,8 @@ export function App() {
         {view.name === 'student' && <StudentPage onNavigate={go} />}
         {view.name === 'reviews' && <ReviewsPage onNavigate={go} />}
         {view.name === 'mistakes' && <MistakesPage />}
+        {view.name === 'rank' && <RankPage />}
+        {view.name === 'practice' && <PracticePage />}
         {view.name === 'review' && <ReviewPage id={view.id} onNavigate={go} />}
         {view.name === 'settings' && <SettingsPage />}
         {view.name === 'members' && <MembersPage />}
