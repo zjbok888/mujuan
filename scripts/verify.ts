@@ -284,6 +284,39 @@ check('两端路由面隔离：学生端碰不到出卷与改题', async () => {
   return `${attempts.length} 条教师端接口在学生端均为 404`
 })
 
+check('排行榜：未授权学生看不到，周期生效', async () => {
+  const rankOf = async (): Promise<number> => {
+    const res = await sInject({ method: 'GET', url: '/api/student/rank' })
+    if (res.statusCode !== 200) throw new Error(`排行接口 ${res.statusCode}`)
+    return (res.json() as { items: unknown[] }).items.length
+  }
+  const setRanking = async (body: Record<string, unknown>): Promise<void> => {
+    const res = await tInject({
+      method: 'PUT',
+      url: `/api/papers/${paperId}/ranking`,
+      payload: body,
+    })
+    if (res.statusCode !== 200) throw new Error(`设置排行榜失败 ${res.statusCode}`)
+  }
+
+  await setRanking({ enabled: false })
+  if ((await rankOf()) !== 0) throw new Error('未授权时学生不应看到排行榜')
+
+  await setRanking({ enabled: true })
+  if ((await rankOf()) !== 1) throw new Error('授权后学生应看到 1 份')
+
+  const future = new Date(Date.now() + 86_400_000).toISOString()
+  await setRanking({ enabled: true, startAt: future })
+  if ((await rankOf()) !== 0) throw new Error('未到开始时间不应可见')
+
+  const past = new Date(Date.now() - 3_600_000).toISOString()
+  await setRanking({ enabled: true, endAt: past })
+  if ((await rankOf()) !== 0) throw new Error('超过结束时间不应可见')
+
+  await setRanking({ enabled: true, startAt: null, endAt: null })
+  return '未授权 0 份 · 授权 1 份 · 周期外 0 份'
+})
+
 check('交卷：不依赖请求体里的 student，且不可冒充', async () => {
   // 前端早已改成"身份来自会话"；如果接口还把 student 当必填，整片交卷会 400
   const bare = await sInject({

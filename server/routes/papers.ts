@@ -5,6 +5,7 @@ import { SSE_HEADERS, encodeSse, type ServerEvent } from '../../shared/events.js
 import type { AppConfig } from '../config.js'
 import { LlmError, streamChat } from '../infra/llm.js'
 import { createRateLimiter } from '../infra/rate-limit.js'
+import { getSetting, setSetting } from '../infra/ranking-settings.js'
 import type { PaperRepo } from '../infra/repo.js'
 import { clampMixToDemo, loadDemoPaper } from '../infra/demo.js'
 import { getProvider, isDemo } from '../settings.js'
@@ -198,5 +199,38 @@ export function registerPaperRoutes(app: FastifyInstance, deps: RouteDeps): void
     reply.header('Content-Type', 'text/csv; charset=utf-8')
     reply.header('Content-Disposition', `attachment; filename="scores-${record.id}.csv"`)
     return reply.send(csv)
+  })
+
+  // ── 排行榜授权：老师决定学生能不能看、什么时候能看 ──────────────
+  app.get<{ Params: { id: string } }>('/api/papers/:id/ranking', async (request, reply) => {
+    const record = await repo.getPaper(request.params.id)
+    if (!record) return reply.code(404).send({ error: 'NOT_FOUND', message: '试卷不存在' })
+    return { setting: getSetting(request.params.id) }
+  })
+
+  app.put<{ Params: { id: string } }>('/api/papers/:id/ranking', async (request, reply) => {
+    const record = await repo.getPaper(request.params.id)
+    if (!record) return reply.code(404).send({ error: 'NOT_FOUND', message: '试卷不存在' })
+
+    const body = (request.body ?? {}) as { enabled?: unknown; startAt?: unknown; endAt?: unknown }
+    const asTime = (value: unknown): string | null => {
+      if (typeof value !== 'string' || value.trim() === '') return null
+      const parsed = new Date(value)
+      return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+    }
+
+    const startAt = asTime(body.startAt)
+    const endAt = asTime(body.endAt)
+    if (startAt && endAt && startAt > endAt) {
+      return reply.code(400).send({ error: 'INVALID_WINDOW', message: '开始时间必须早于结束时间' })
+    }
+
+    return {
+      setting: setSetting(request.params.id, {
+        enabled: body.enabled === true,
+        startAt,
+        endAt,
+      }),
+    }
   })
 }

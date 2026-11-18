@@ -38,7 +38,7 @@ export function RankPage() {
       {items === null ? (
         <div className="stage-empty">载入中…</div>
       ) : items.length === 0 ? (
-        <div className="card panel muted">还没有已发布的试卷，等老师发布后这里会有排名。</div>
+        <div className="card panel muted">老师还没有公开排行榜。公开之后，这里会显示每份卷的名次。</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {items.map((item) => (

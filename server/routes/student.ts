@@ -8,6 +8,7 @@ import { createRateLimiter } from '../infra/rate-limit.js'
 import type { PaperRepo } from '../infra/repo.js'
 import { isDemo } from '../settings.js'
 import { currentUser } from '../auth/session.js'
+import { isRankingVisible } from '../infra/ranking-settings.js'
 import type { PaperIR } from '../../shared/ir.js'
 
 /**
@@ -380,6 +381,8 @@ export function registerDiagnosisRoute(app: FastifyInstance, deps: StudentDeps):
 
     for (const summary of await deps.repo.listPapers()) {
       if (summary.status !== 'published') continue
+      // 老师未授权或不在查看周期内，学生端直接看不到这份卷的排名
+      if (!isRankingVisible(summary.id)) continue
       const best = new Map<string, number>()
       for (const attempt of await deps.repo.listAttempts(summary.id)) {
         if (attempt.preview) continue

@@ -5,6 +5,25 @@ import { api } from '../api.js'
 import { QuestionView } from '../components/question-view.js'
 import { RichText } from '../components/rich-text.js'
 
+interface RankingSetting {
+  enabled: boolean
+  startAt: string | null
+  endAt: string | null
+}
+
+/** datetime-local 只认本地时间字符串，直接塞 ISO 会显示空白 */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function fromLocalInput(value: string): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
 interface PaperResponse {
   id: string
   status: 'draft' | 'published'
@@ -25,6 +44,17 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
   const [busy, setBusy] = useState(false)
   // 教师版：显示答案与解析，打印时一并输出
   const [showKey, setShowKey] = useState(false)
+  const [ranking, setRanking] = useState<RankingSetting>({ enabled: false, startAt: null, endAt: null })
+
+  const saveRanking = async (next: RankingSetting): Promise<void> => {
+    setRanking(next)
+    try {
+      const res = await api.put<{ setting: RankingSetting }>(`/api/papers/${id}/ranking`, next)
+      setRanking(res.setting)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
 
   const load = (): void => {
     api
@@ -34,6 +64,13 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
   }
 
   useEffect(load, [id])
+
+  useEffect(() => {
+    api
+      .get<{ setting: RankingSetting }>(`/api/papers/${id}/ranking`)
+      .then((res) => setRanking(res.setting))
+      .catch(() => undefined)
+  }, [id])
 
   // 草稿默认给老师看答案，已发布默认给学生版；之后以按钮状态为准
   useEffect(() => {
@@ -181,6 +218,41 @@ export function PaperPage({ id, onNavigate }: { id: string; onNavigate: (path: s
       </header>
 
       {error && <div className="statusbar err">{error}</div>}
+
+      <section className="card panel" style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5 }}>
+        <strong style={{ fontSize: 13 }}>排行榜授权</strong>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input
+            type="checkbox"
+            checked={ranking.enabled}
+            onChange={(e) => void saveRanking({ ...ranking, enabled: e.target.checked })}
+          />
+          允许学生查看
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          从
+          <input
+            className="input"
+            type="datetime-local"
+            style={{ width: 190 }}
+            value={ranking.startAt ? toLocalInput(ranking.startAt) : ''}
+            onChange={(e) => void saveRanking({ ...ranking, startAt: fromLocalInput(e.target.value) })}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          到
+          <input
+            className="input"
+            type="datetime-local"
+            style={{ width: 190 }}
+            value={ranking.endAt ? toLocalInput(ranking.endAt) : ''}
+            onChange={(e) => void saveRanking({ ...ranking, endAt: fromLocalInput(e.target.value) })}
+          />
+        </label>
+        <span className="muted" style={{ fontSize: 11.5 }}>
+          {ranking.enabled ? '学生此刻可见（周期留空表示永久）' : '未授权：学生端看不到这份卷的名次'}
+        </span>
+      </section>
 
       <div className="card panel" style={{ display: 'flex', gap: 22, flexWrap: 'wrap', fontSize: 12.5 }}>
         {(Object.keys(stats.byType) as Array<keyof typeof stats.byType>)
