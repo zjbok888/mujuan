@@ -58,9 +58,7 @@ export function ReviewsPage({ onNavigate }: { onNavigate: (path: string) => void
                 <div className="review-row-stats">
                   <span className={`tag ${percent >= 60 ? 'ok' : 'warn'}`}>
                     {attempt.score} / {attempt.maxScore}
-                  </span>
-                  <span className={`tag${attempt.wrong > 0 ? ' seal' : ''}`}>
-                    {attempt.wrong > 0 ? `${attempt.wrong} 道错题` : '全对'}
+                    <span className="tag-sub">{attempt.wrong > 0 ? `· ${attempt.wrong} 道错题` : '· 全对'}</span>
                   </span>
                   <span className="review-row-go">查看 →</span>
                 </div>

@@ -183,6 +183,14 @@ input, textarea, select {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  /* 放在 flex 行里会被压到比文字还窄，导致叠字——这里一次性钉死 */
+  flex: 0 0 auto;
+  min-width: max-content;
+  width: max-content;
+  max-width: 100%;
+  white-space: nowrap;
+  line-height: 1.7;
+  overflow: visible;
   padding: 2px 9px;
   border-radius: 999px;
   font-size: 11.5px;
@@ -750,3 +758,6 @@ table.plain tr:last-child td { border-bottom: none; }
 .qcard-head > .tag { flex: 0 0 auto; min-width: max-content; width: max-content; }
 .qcard-head > .qnum { flex: 0 0 auto; }
 .tag { white-space: nowrap; }
+
+/* 标签内的次要信息来源，避免并排两个 pill 挤在一起 */
+.tag-sub { margin-left: 6px; opacity: .72; font-weight: 400; }
